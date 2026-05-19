@@ -251,7 +251,8 @@ def add_config(
         #     "graviton_hh_ggf_hbb_htt_m450_madgraph",
         #     "graviton_hh_ggf_hbb_htt_m1200_madgraph",
         # ]),
-
+        # "hh_ggf_hbb_hvv_kl1_kt1_powheg",
+        # "hh_vbf_hbb_hvv_kv1_k2v1_kl1_madgraph",
         # ttbar
         "tt_sl_powheg",
         "tt_dl_powheg",
@@ -434,6 +435,19 @@ def add_config(
         "tth_hbb_powheg",
         "tth_hnonbb_powheg",
 
+        # adding QCD just to understand
+    #    "qcd_ht40to70_madgraph",
+    #    "qcd_ht70to100_madgraph",
+    #    "qcd_ht100to200_madgraph",
+    #    "qcd_ht200to400_madgraph",
+    #    "qcd_ht400to600_madgraph",
+    #    "qcd_ht600to800_madgraph",
+    #    "qcd_ht800to1000_madgraph",
+    #    "qcd_ht1000to1200_madgraph",
+    #    "qcd_ht1200to1500_madgraph",
+    #    "qcd_ht1500to2000_madgraph",
+    #    "qcd_ht2000toinf_madgraph",
+        
         # data
         *if_era(year=2022, tag="preEE", values=[
             f"data_{stream}_{period}" for stream in ["e", "mu", "tau"] for period in "cd"
@@ -527,6 +541,8 @@ def add_config(
                 # no stitching needed, cmsdb has cross sections defined for nj - pt binning processes
                 # with BR information extracted from 2022pre
                 pass
+        if dataset.name.startswith("qcd_ht"):
+            dataset.add_tag("qcd_ht")
         # datasets that are allowed to contain some events with missing lhe infos
         # (known to happen for amcatnlo)
         if dataset.name.endswith("_amcatnlo") or re.match(r"^z_vbf_.*madgraph$", dataset.name):
@@ -586,7 +602,8 @@ def add_config(
             cfg.x.btag_wp_eff_groups = [
                 ["hh_*", "tt_*", "st_*", "ttw_*", "ttz_*", "ttww_*", "ttwz_*", "ttzz_*"],
                 ["dy_*"],
-                ["w_*", "z_*", "zz_*", "wz_*", "ww_*", "www_*", "wwz_*", "wzz_*", "zzz_*"],
+                # ["qcd_*"],
+                ["qcd_*","w_*", "z_*", "zz_*", "wz_*", "ww_*", "www_*", "wwz_*", "wzz_*", "zzz_*"],
                 ["h_*", "wmh_*", "wph_*", "zh_*", "tth_*"],
             ]
             group_matched = False
@@ -645,7 +662,7 @@ def add_config(
         "backgrounds": (backgrounds := [
             "dy",
             "tt",
-            "qcd",
+            # "qcd",
             "st",
             "tt_multiboson",
             "multiboson",
@@ -1120,6 +1137,7 @@ def add_config(
     elif run == 3:
         # https://twiki.cern.ch/twiki/bin/view/CMS/TauIDRecommendationForRun3?rev=11
         cfg.x.tau_tagger = "DeepTau2018v2p5"
+        cfg.x.tau_taggerPNET = "PNet"
     else:
         assert False
 
@@ -1135,6 +1153,28 @@ def add_config(
             "vs_e": {"vvvloose": 1, "vvloose": 2, "vloose": 3, "loose": 4, "medium": 5, "tight": 6, "vtight": 7, "vvtight": 8},  # noqa: E501
             "vs_jet": {"vvvloose": 1, "vvloose": 2, "vloose": 3, "loose": 4, "medium": 5, "tight": 6, "vtight": 7, "vvtight": 8},  # noqa: E501
             "vs_mu": {"vloose": 1, "loose": 2, "medium": 3, "tight": 4},
+        })
+        tau_key=str(year)
+
+        cfg.x.pnettau_working_points = DotDict.wrap({    
+                "vs_jet":{
+                    #signal efficiency 99.5%
+                    "vvvloose":{"2022":0.148, "2024":0.153}[tau_key], 
+                    #signal efficiency 99%
+                    "vvloose":{"2022":0.4, "2024":0.387}[tau_key],
+                    #signal efficiency 98%
+                    "vloose":{"2022":0.747, "2024":0.727}[tau_key], 
+                    #signal efficiency 95%
+                    "loose":{"2022":0.956, "2024":0.949}[tau_key], 
+                    #signal efficiency 90%
+                    "medium":{"2022":0.983, "2024":0.981}[tau_key], 
+                    #signal efficiency 80%
+                    "tight":{"2022":0.992, "2024":0.991}[tau_key], 
+                    #signal efficiency 70%
+                    "vtight":{"2022":0.996, "2024":0.995}[tau_key], 
+                    #signal efficiency 60%
+                    "vtight":{"2022":0.998, "2024":0.998}[tau_key], 
+                }
         })
 
     # employed deeptau working points, potentially channel dependent

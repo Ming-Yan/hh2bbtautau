@@ -646,6 +646,13 @@ def add_variables(config: od.Config) -> None:
 
     # single tau
     add_variable(
+        name="ntaus",
+        expression=lambda events: ak.num(events.Tau["pt"], axis=1),
+        aux={"inputs": {"Tau.pt"}},
+        binning=(11, -0.5, 10.5),
+        x_title=r"Number of taus",
+    )
+    add_variable(
         name="tau1_pt",
         expression="Tau.pt[:, 0]",
         binning=(30, 0, 150),
