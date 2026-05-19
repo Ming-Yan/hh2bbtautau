@@ -462,3 +462,15 @@ def cat_tt(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.
 @cat_tt.init
 def cat_tt_init(self: Categorizer) -> None:
     self.uses.add(f"{self.config_inst.x.met_name}.{{pt,phi}}")
+
+@categorizer(uses={"{Electron,Muon,Tau,HH}.{pt,eta,phi,mass}"})
+def cat_tt(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    # tt region: met > 30 (due to neutrino presence in leptonic w decays)
+    mask = events[self.config_inst.x.met_name].pt > 30
+    return events, mask
+
+
+@cat_tt.init
+def cat_tt_init(self: Categorizer) -> None:
+    self.uses.add(f"{self.config_inst.x.met_name}.{{pt,phi}}")
+

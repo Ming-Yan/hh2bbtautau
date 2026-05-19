@@ -428,6 +428,9 @@ def tau_selection(
         (abs(events.Tau.dz) < 0.2) &
         reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
         (events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet.vvvloose)
+        # (events.Tau.rawPNetVSjet > self.config_inst.x.pnettau_working_points.vs_jet.vvvloose)
+        ## TODO VSjet
+        
         # vs e and mu cuts are channel dependent and thus applied in the overall lepton selection
     )
 
@@ -442,6 +445,8 @@ def tau_selection(
 
     # compute the isolation mask separately as it is used to defined (qcd) categories later on
     iso_mask = events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # noqa: E501
+    # TODO VSjet
+    # iso_mask = events.Tau.rawPNetVSjet >= self.config_inst.x.pnettau_working_points.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # 
 
     return base_mask, trigger_specific_mask, iso_mask
 
@@ -759,7 +764,7 @@ def lepton_selection(
     # indices for sorting taus first by isolation, then by pt
     # for this, combine iso and pt values, e.g. iso 255 and pt 32.3 -> 2550032.3
     f = 10**(np.ceil(np.log10(ak.max(events.Tau.pt) or 0.0)) + 2)
-    tau_sorting_key = events.Tau[f"raw{self.config_inst.x.tau_tagger}VSjet"] * f + events.Tau.pt
+    tau_sorting_key = events.Tau[f"raw{self.config_inst.x.tau_taggerPNET}VSjet"] * f + events.Tau.pt
     tau_sorting_indices = ak.argsort(tau_sorting_key, axis=-1, ascending=False)
 
     def update_passed_selection_dict(
@@ -1495,4 +1500,4 @@ def lepton_selection(
 @lepton_selection.init
 def lepton_selection_init(self: Selector, **kwargs) -> None:
     # add column to load the raw tau tagger score
-    self.uses.add(f"Tau.raw{self.config_inst.x.tau_tagger}VSjet")
+    self.uses.add(f"Tau.raw{self.config_inst.x.tau_taggerPNET}VSjet")
