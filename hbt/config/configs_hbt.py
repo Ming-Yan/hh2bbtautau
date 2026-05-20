@@ -251,6 +251,12 @@ def add_config(
         #     "graviton_hh_ggf_hbb_htt_m450_madgraph",
         #     "graviton_hh_ggf_hbb_htt_m1200_madgraph",
         # ]),
+        # *if_era(year=2022, values=[
+        #     # "radion_hh_ggf_hbb_htt_m450_madgraph",
+        #     # "radion_hh_ggf_hbb_htt_m1200_madgraph",
+        #     # "graviton_hh_ggf_hbb_htt_m450_madgraph",
+        #     # "graviton_hh_ggf_hbb_htt_m1200_madgraph",
+        # ]),
         # "hh_ggf_hbb_hvv_kl1_kt1_powheg",
         # "hh_vbf_hbb_hvv_kv1_k2v1_kl1_madgraph",
         # ttbar
@@ -602,8 +608,8 @@ def add_config(
             cfg.x.btag_wp_eff_groups = [
                 ["hh_*", "tt_*", "st_*", "ttw_*", "ttz_*", "ttww_*", "ttwz_*", "ttzz_*"],
                 ["dy_*"],
-                # ["qcd_*"],
-                ["qcd_*","w_*", "z_*", "zz_*", "wz_*", "ww_*", "www_*", "wwz_*", "wzz_*", "zzz_*"],
+                ["qcd_*"],
+                ["w_*", "z_*", "zz_*", "wz_*", "ww_*", "www_*", "wwz_*", "wzz_*", "zzz_*"],
                 ["h_*", "wmh_*", "wph_*", "zh_*", "tth_*"],
             ]
             group_matched = False

@@ -427,8 +427,9 @@ def tau_selection(
         (events.Tau.pt > base_pt) &
         (abs(events.Tau.dz) < 0.2) &
         reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
-        (events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet.vvvloose)
-        # (events.Tau.rawPNetVSjet > self.config_inst.x.pnettau_working_points.vs_jet.vvvloose)
+        (events.Tau.rawPNetVSjet > self.config_inst.x.pnettau_working_points.vs_jet.vvvloose)
+        # (events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet.vvvloose)
+        # 
         ## TODO VSjet
         
         # vs e and mu cuts are channel dependent and thus applied in the overall lepton selection
@@ -444,9 +445,9 @@ def tau_selection(
     trigger_specific_mask = base_mask & (events.Tau.pt > min_pt)
 
     # compute the isolation mask separately as it is used to defined (qcd) categories later on
-    iso_mask = events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # noqa: E501
+    # iso_mask = events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # noqa: E501
     # TODO VSjet
-    # iso_mask = events.Tau.rawPNetVSjet >= self.config_inst.x.pnettau_working_points.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # 
+    iso_mask = events.Tau.rawPNetVSjet >= self.config_inst.x.pnettau_working_points.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # 
 
     return base_mask, trigger_specific_mask, iso_mask
 
