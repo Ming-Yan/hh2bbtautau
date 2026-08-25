@@ -18,7 +18,7 @@ from columnflow.columnar_util import (
 )
 from columnflow.util import maybe_import
 
-from hbt.util import IF_NANO_V9, IF_NANO_GE_V10
+from hbt.util import IF_NANO_V9, IF_NANO_GE_V10, IF_MC
 from hbt.config.util import Trigger
 
 np = maybe_import("numpy")
@@ -63,6 +63,37 @@ def trigger_object_matching(
 
     return any_match
 
+class StepAccumulator:
+    """
+    Collects cumulative event masks over the trigger/channel loop. Stage names are
+    ordered; within one *add* call, each stage is ANDed with all preceding ones, and
+    the result is ORed into the global mask of that stage. Stages missing from a call
+    are treated as "passed" so that channels without that concept are not removed.
+    """
+
+    def __init__(self, names: list[str], template: ak.Array):
+        self.names = list(names)
+        self.masks = {name: template for name in self.names}
+        self.last = {}                      
+
+    def add(self, channel_masks: dict[str, ak.Array]) -> ak.Array:
+        unknown = set(channel_masks) - set(self.names)
+        if unknown:
+            raise ValueError(f"unknown selection stages: {unknown}")
+
+        cumulative = None
+        self.last = {}     
+        for name in self.names:
+            mask = channel_masks.get(name)
+            if mask is not None:
+                mask = ak.fill_none(mask, False)
+                cumulative = mask if cumulative is None else (cumulative & mask)
+            # note: when the stage is absent, cumulative is carried over unchanged,
+            # i.e. the channel passes this stage trivially
+            self.last[name] = cumulative    # <-- and this
+            if cumulative is not None:
+                self.masks[name] = self.masks[name] | cumulative
+        return cumulative
 
 def update_channel_ids(
     events: ak.Array,
@@ -143,6 +174,7 @@ def electron_selection(
     # default electron mask
     analysis_mask = None
     control_mask = None
+    ele_stages={"base": (abs(events.Electron.eta) < 2.5) & (events.Electron.pt > 10.0) & ~in_ecal_overlap}
     if is_single or is_cross or is_cross_vbf or is_vbf:
         if is_single:
             min_pt = 26.0 if is_2016 else 31.0
@@ -160,6 +192,7 @@ def electron_selection(
             else:
                 raise ValueError("Invalid configuration for cross_e_vbf trigger, should only exist in 2023 and 2024")
         max_eta_base = 2.5
+        
         default_mask = (
             (mva_iso_wp80 == 1) &
             (abs(events.Electron.eta) < max_eta_base) &
@@ -167,6 +200,7 @@ def electron_selection(
             (abs(events.Electron.dz) < 0.2) &
             ~in_ecal_overlap
         )
+        ele_stages["id"]= default_mask
 
         # additional cut in 2022 postEE
         # see https://twiki.cern.ch/twiki/bin/viewauth/CMS/PdmVRun3Analysis?rev=185#From_ECAL_and_EGM
@@ -197,6 +231,7 @@ def electron_selection(
         # as it is a trigger specific cut and thus applied after the base tau selection
         max_eta_trigger = 2.1 if is_cross else 2.5
         analysis_mask = default_mask & (events.Electron.pt > min_pt) & (abs(events.Electron.eta) < max_eta_trigger)
+        ele_stages["trigger_offline"]= default_mask
 
     # veto electron mask (must be trigger independent!)
     veto_mask = (
@@ -208,7 +243,7 @@ def electron_selection(
         ~in_ecal_overlap
     )
 
-    return analysis_mask, control_mask, veto_mask
+    return analysis_mask, control_mask, veto_mask, ele_stages
 
 
 @electron_selection.init
@@ -284,6 +319,7 @@ def muon_selection(
     # default muon mask
     analysis_mask = None
     control_mask = None
+    mu_stages = {"base": (abs(events.Muon.eta) < 2.4) & (events.Muon.pt > 6.0)}
     if is_single or is_cross or is_cross_vbf:
         if is_single:
             min_pt = 23.0 if is_2016 else 26.0
@@ -292,6 +328,7 @@ def muon_selection(
         elif is_cross_vbf:
             min_pt = 6.0
         eta_cut_base = 2.4
+        
         default_mask = (
             (events.Muon.tightId == 1) &
             (abs(events.Muon.eta) < eta_cut_base) &
@@ -299,6 +336,7 @@ def muon_selection(
             (abs(events.Muon.dz) < 0.2) &
             (events.Muon.pfRelIso04_all < 0.15)  # tight iso working point
         )
+        mu_stages["id"]= default_mask
         # pt control mask cut updated to 6 GeV for VBF strategy in 2023,
         # but applied for all channels and eras
         control_mask = default_mask & (events.Muon.pt > 6.0)
@@ -307,7 +345,8 @@ def muon_selection(
         # as it is a trigger specific cut and thus applied after the base tau selection
         eta_cut_trigger = 2.1 if is_cross else 2.4
         analysis_mask = default_mask & (events.Muon.pt > min_pt) & (abs(events.Muon.eta) < eta_cut_trigger)
-
+        mu_stages["trigger_offline"]= analysis_mask
+        
     # veto muon mask (must be trigger independent!)
     veto_mask = (
         ((events.Muon.mediumId == 1) | (events.Muon.tightId == 1)) &
@@ -319,7 +358,7 @@ def muon_selection(
         #  (events.Muon.pt > 10.0)  # this would disable the VBF phase space
     )
 
-    return analysis_mask, control_mask, veto_mask
+    return analysis_mask, control_mask, veto_mask, mu_stages
 
 
 @muon_selection.init
@@ -369,6 +408,7 @@ def muon_trigger_matching(
     uses={
         "Tau.{pt,eta,phi,dz,decayMode}",
         "{Electron,Muon,TrigObj}.{pt,eta,phi}",
+        IF_MC("Tau.genPartFlav"),
     },
     # shifts are declared dynamically below in tau_selection_init
     exposed=False,
@@ -437,6 +477,7 @@ def tau_selection(
         min_pt = 25.0
 
     # base tau mask for default and qcd sideband tau
+    tau_stages= {"base": (abs(events.Tau.eta) < max_eta) &  (events.Tau.pt > base_pt)}
     base_mask = (
         (abs(events.Tau.eta) < max_eta) &
         (events.Tau.pt > base_pt) &
@@ -445,20 +486,21 @@ def tau_selection(
         (events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet.vvvloose)
         # vs e and mu cuts are channel dependent and thus applied in the overall lepton selection
     )
+    tau_stages["id"]= base_mask
 
     # remove taus with too close spatial separation to previously selected leptons
     if electron_mask is not None:
         base_mask = base_mask & ak.all(events.Tau.metric_table(events.Electron[electron_mask]) > 0.5, axis=2)
     if muon_mask is not None:
         base_mask = base_mask & ak.all(events.Tau.metric_table(events.Muon[muon_mask]) > 0.5, axis=2)
-
     # trigger dependent cuts
     trigger_specific_mask = base_mask & (events.Tau.pt > min_pt)
-
+    tau_stages["trigger_offline"] = trigger_specific_mask
     # compute the isolation mask separately as it is used to defined (qcd) categories later on
     iso_mask = events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # noqa: E501
+   
+    return base_mask, trigger_specific_mask, iso_mask, tau_stages
 
-    return base_mask, trigger_specific_mask, iso_mask
 
 
 @tau_selection.init
@@ -778,7 +820,20 @@ def lepton_selection(
     f = 10**(np.ceil(np.log10(ak.max(events.Tau.pt) or 0.0)) + 2)
     tau_sorting_key = events.Tau[f"raw{self.config_inst.x.tau_tagger}VSjet"] * f + events.Tau.pt
     tau_sorting_indices = ak.argsort(tau_sorting_key, axis=-1, ascending=False)
-
+    steps_lep = StepAccumulator(
+    [
+        "sr_lepton_trigger_fired",
+        "sr_lepton_acceptance",
+        "sr_lepton_id",
+        "sr_lepton_trigger_offline",
+        "sr_lepton_trigger_matching",
+        "sr_lepton_os_iso",
+        "sr_lepton_vetoes",
+        "sr_lepton",
+    ],
+    false_mask,
+)
+      
     def update_passed_selection_dict(
         selection_dict: dict[str, ak.Array],
         tau_trigger_mask: ak.Array,
@@ -820,21 +875,21 @@ def lepton_selection(
         is_cross = trigger.has_tag("cross_trigger")
 
         # electron selection
-        electron_mask, electron_control_mask, electron_veto_mask = self[electron_selection](
+        electron_mask, electron_control_mask, electron_veto_mask, electron_stages = self[electron_selection](
             events,
             trigger,
             **sel_kwargs,
         )
 
         # muon selection
-        muon_mask, muon_control_mask, muon_veto_mask = self[muon_selection](
+        muon_mask, muon_control_mask, muon_veto_mask, muon_stages = self[muon_selection](
             events,
             trigger,
             **sel_kwargs,
         )
 
         # tau selection
-        tau_base_mask, tau_trigger_specific_mask, tau_iso_mask = self[tau_selection](
+        tau_base_mask, tau_trigger_specific_mask, tau_iso_mask, tau_stages = self[tau_selection](
             events,
             trigger,
             electron_control_mask,
@@ -946,11 +1001,39 @@ def lepton_selection(
             ids = ak.singletons(ak.nan_to_none(ids))
             # we need to store the trigger id for the cross_e_vbf and cross_vbf triggers separately, as
             # we are not sure yet whether the matching is correct for the jet legs of the trigger
+            steps_lep.add({
+                "sr_lepton_trigger_fired": trigger_fired,
+                "sr_lepton_acceptance": (
+                    (ak.sum(electron_stages["base"], axis=1) >= 1) &
+                    (ak.sum(tau_stages["base"], axis=1) >= 1)
+                ),
+                "sr_lepton_id": (
+                    (ak.sum(electron_stages["id"], axis=1) >= 1) &
+                    (ak.sum(tau_stages["id"], axis=1) >= 1)
+                ),
+                "sr_lepton_trigger_offline": (
+                    ak.sum(ch_base_tau_mask & tau_trigger_specific_mask, axis=1) >= 1
+                ),
+                "sr_lepton_trigger_matching": (
+                    (ak.sum(trig_electron_mask, axis=1) >= 1) &
+                    first_tau_matched
+                ),
+                "sr_lepton_os_iso": (is_os) & (num_taus_iso >= 1),
+                "sr_lepton_vetoes": (
+                    (ak.sum(electron_mask, axis=1) == 1) &
+                    (ak.sum(trig_electron_mask, axis=1) == 1) &
+                    (ak.sum(electron_veto_mask, axis=1) == 1) &
+                    (ak.sum(muon_veto_mask, axis=1) == 0)
+                ),
+                # "lepton": is_etau,
+            })
+            
             if trigger.has_tag({"cross_e_vbf", "cross_vbf"}):
                 lepton_part_trigger_ids.append(ids)
             else:
                 matched_trigger_ids.append(ids)
-
+           
+           
         # mutau channel
         if trigger.has_tag({"single_mu", "cross_mu_tau", "cross_mu_vbf"}) and (
             self.dataset_inst.is_mc or
@@ -1055,7 +1138,33 @@ def lepton_selection(
                 lepton_part_trigger_ids.append(ids)
             else:
                 matched_trigger_ids.append(ids)
-
+            steps_lep.add({
+                "sr_lepton_trigger_fired": trigger_fired,
+                "sr_lepton_acceptance": (
+                    (ak.sum(muon_stages["base"], axis=1) >= 1) &
+                    (ak.sum(tau_stages["base"], axis=1) >= 1)
+                ),
+                "sr_lepton_id": (
+                    (ak.sum(muon_stages["id"], axis=1) >= 1) &
+                    (ak.sum(tau_stages["id"], axis=1) >= 1)
+                ),
+                
+                "sr_lepton_trigger_offline": (
+                    ak.sum(ch_base_tau_mask & tau_trigger_specific_mask, axis=1) >= 1
+                ),
+                "sr_lepton_trigger_matching": (
+                    (ak.sum(trig_muon_mask, axis=1) >= 1) &
+                    first_tau_matched
+                ),
+                "sr_lepton_os_iso": (is_os) & (num_taus_iso >= 1),
+                "sr_lepton_vetoes": (
+                    (ak.sum(muon_mask, axis=1) == 1) &
+                    (ak.sum(trig_muon_mask, axis=1) == 1) &
+                    (ak.sum(muon_veto_mask, axis=1) == 1) &
+                    (ak.sum(electron_veto_mask, axis=1) == 0)
+                ),
+                # "lepton": is_mutau,
+            })
         # tautau channel
         if (
             trigger.has_tag({
@@ -1097,12 +1206,12 @@ def lepton_selection(
 
             # fold trigger matching into the selection if needed
             trig_tau_mask = ch_base_tau_mask
-            if not trigger.has_tag("cross_vbf"):
-                # create a mask selecting only the two most isolated taus among the base selected ones
-                # and with the layout of the original tau collection
-                most_isolated_tau_mask = tau_sorting_indices[ch_base_tau_mask[tau_sorting_indices]][:, :2]
-                most_isolated_tau_mask = mask_from_indices(most_isolated_tau_mask, events.Tau.pt)
+            # create a mask selecting only the two most isolated taus among the base selected ones
+            # and with the layout of the original tau collection
+            most_isolated_tau_mask = tau_sorting_indices[ch_base_tau_mask[tau_sorting_indices]][:, :2]
+            most_isolated_tau_mask = mask_from_indices(most_isolated_tau_mask, events.Tau.pt)
 
+            if not trigger.has_tag("cross_vbf"):
                 # quadjet specific handling: one tau must match the tau leg and
                 # the second must match a jet leg out of 3/4, need to save which trigger objects
                 # were matched for later use in the jet selection
@@ -1187,7 +1296,26 @@ def lepton_selection(
                 lepton_part_trigger_ids.append(ids)
             else:
                 matched_trigger_ids.append(ids)
+                        # the offline pt requirement applies to both leading taus, except for cross_tau_vbf
+            # where only the highest-pt tau carries it (offline_cut_mask is event level there)
+            if trigger.has_tag("cross_tau_vbf"):
+                offline_step = offline_cut_mask & (ak.sum(most_isolated_tau_mask, axis=1) >= 2)
+            else:
+                offline_step = ak.sum(most_isolated_tau_mask & tau_trigger_specific_mask, axis=1) >= 2
 
+            steps_lep.add({
+                "sr_lepton_trigger_fired": trigger_fired,
+                "sr_lepton_acceptance": ak.sum(tau_stages["base"], axis=1) >= 2,
+                "sr_lepton_id": ak.sum(tau_stages["id"], axis=1) >= 2,
+                "sr_lepton_trigger_offline": offline_step,
+                "sr_lepton_trigger_matching": leading_taus_matched,
+                "sr_lepton_os_iso": (is_os) & (num_taus_iso >= 2),
+                "sr_lepton_vetoes": (
+                    (ak.sum(electron_veto_mask, axis=1) == 0) &
+                    (ak.sum(muon_veto_mask, axis=1) == 0)
+                ),
+                # "lepton": is_tautau,
+            })
         # ee channel
         if trigger.has_tag("single_e") and (
             self.dataset_inst.is_mc or
@@ -1233,7 +1361,7 @@ def lepton_selection(
             # store the matched trigger id
             ids = ak.where(is_ee, np.float32(trigger.id), np.float32(np.nan))
             matched_trigger_ids.append(ak.singletons(ak.nan_to_none(ids)))
-
+            # steps_lep.add({"sr_lepton_trigger_fired": trigger_fired, "lepton": is_ee})
         # mumu channel
         if trigger.has_tag("single_mu") and (
             self.dataset_inst.is_mc or
@@ -1279,7 +1407,7 @@ def lepton_selection(
             # store the matched trigger id
             ids = ak.where(is_mumu, np.float32(trigger.id), np.float32(np.nan))
             matched_trigger_ids.append(ak.singletons(ak.nan_to_none(ids)))
-
+            # steps_lep.add({"lepton_trigger_fired": trigger_fired, "lepton": is_mumu})
         # emu channel
         if (
             (emu_from_e := (
@@ -1316,7 +1444,7 @@ def lepton_selection(
 
                     # Columnflow variant: remove event only if the muon trigger fired AND matched
                     # the correct muon mask if not matched is the control muon mask with min pt 20
-                    trig_emu_muon_mask, emu_muon_mask, _ = self[muon_selection](events, _trigger, **sel_kwargs)
+                    trig_emu_muon_mask, emu_muon_mask, _,_ = self[muon_selection](events, _trigger, **sel_kwargs)
                     # fold trigger matching into the selection
                     trig_emu_muon_mask = (
                         trig_emu_muon_mask &
@@ -1350,7 +1478,7 @@ def lepton_selection(
                         continue
                     # evaluate the electron selection once (it is the same for all single triggers)
                     if emu_electron_mask is False:
-                        emu_electron_mask_for_matching, emu_electron_control_mask, _ = self[electron_selection](events, _trigger, **sel_kwargs)  # noqa: E501
+                        emu_electron_mask_for_matching, emu_electron_control_mask, _, _ = self[electron_selection](events, _trigger, **sel_kwargs)  # noqa: E501
                     # store the trigger decision
                     e_trig_fired = e_trig_fired | _trigger_fired
                     # evaluate the matching
@@ -1422,6 +1550,8 @@ def lepton_selection(
                 ids = ak.where(is_emu, e_match_trigger_ids, np.float32([[np.nan]]))
                 matched_trigger_ids.append(ak.drop_none(ak.nan_to_none(ids)))
 
+            # steps_lep.add({"lepton_trigger_fired": trigger_fired, "lepton": is_emu})
+
     # some final type conversions
     channel_id = ak.values_astype(channel_id, np.int8)
     leptons_os = ak.fill_none(leptons_os, False)
@@ -1452,7 +1582,8 @@ def lepton_selection(
 
     return events, SelectionResult(
         steps={
-            "lepton": channel_id != 0,
+            **steps_lep.masks,
+            # "lepton": channel_id != 0,
         },
         objects={
             "Electron": {

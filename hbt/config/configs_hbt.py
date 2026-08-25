@@ -190,8 +190,8 @@ def add_config(
         "h",
         "hh_ggf_hbb_htt",
         "hh_vbf_hbb_htt",
-        "hh_ggf_hbb_hvv",
-        "hh_vbf_hbb_hvv",
+        # "hh_ggf_hbb_hvv",
+        # "hh_vbf_hbb_hvv",
     ]
     for process_name in process_names:
         if process_name in procs:
@@ -231,13 +231,13 @@ def add_config(
     dataset_names = [
         # hh ggf
         *law.util.flatten(
-            law.util.brace_expand(f"hh_ggf_hbb_h{{tt,vv,vv2l2nu,vvqqlnu}}_kl{kl}_kt1_powheg")
+            law.util.brace_expand(f"hh_ggf_hbb_h{{tt}}_kl{kl}_kt1_powheg")
             for kl, in cfg.x.hh_points.ggf
         ),
 
         # hh vbf
         *law.util.flatten(
-            law.util.brace_expand(f"hh_vbf_hbb_h{{tt,vv,vv2l2nu,vvqqlnu}}_kv{kv}_k2v{k2v}_kl{kl}_madgraph")
+            law.util.brace_expand(f"hh_vbf_hbb_h{{tt}}_kv{kv}_k2v{k2v}_kl{kl}_madgraph")
             for kv, k2v, kl in cfg.x.hh_points.vbf
         ),
 
@@ -721,26 +721,26 @@ def add_config(
                 }
 
         # bbvv
-        vv_decays = ["qqlnu", "2l2nu", "4q", "2q2nu", "4nu", "4l", "2l2q"]
-        cfg.x.bbvv_stitching = {
-            f"ggf_kl{kl}": {
-                "inclusive_dataset": cfg.get_dataset(f"hh_ggf_hbb_hvv_kl{kl}_kt1_powheg"),
-                "leaf_processes": [
-                    cfg.get_process(f"hh_ggf_hbb_hvv{vv}_kl{kl}_kt1")
-                    for vv in vv_decays
-                ],
-            }
-            for kl, in cfg.x.hh_points.ggf
-        } | {
-            f"vbf_kv{kv}_k2v{k2v}_kl{kl}": {
-                "inclusive_dataset": cfg.get_dataset(f"hh_vbf_hbb_hvv_kv{kv}_k2v{k2v}_kl{kl}_madgraph"),
-                "leaf_processes": [
-                    cfg.get_process(f"hh_vbf_hbb_hvv{vv}_kv{kv}_k2v{k2v}_kl{kl}")
-                    for vv in vv_decays
-                ],
-            }
-            for kv, k2v, kl in cfg.x.hh_points.vbf
-        }
+        # vv_decays = ["qqlnu", "2l2nu", "4q", "2q2nu", "4nu", "4l", "2l2q"]
+        # cfg.x.bbvv_stitching = {
+        #     f"ggf_kl{kl}": {
+        #         "inclusive_dataset": cfg.get_dataset(f"hh_ggf_hbb_hvv_kl{kl}_kt1_powheg"),
+        #         "leaf_processes": [
+        #             cfg.get_process(f"hh_ggf_hbb_hvv{vv}_kl{kl}_kt1")
+        #             for vv in vv_decays
+        #         ],
+        #     }
+        #     for kl, in cfg.x.hh_points.ggf
+        # } | {
+        #     f"vbf_kv{kv}_k2v{k2v}_kl{kl}": {
+        #         "inclusive_dataset": cfg.get_dataset(f"hh_vbf_hbb_hvv_kv{kv}_k2v{k2v}_kl{kl}_madgraph"),
+        #         "leaf_processes": [
+        #             cfg.get_process(f"hh_vbf_hbb_hvv{vv}_kv{kv}_k2v{k2v}_kl{kl}")
+        #             for vv in vv_decays
+        #         ],
+        #     }
+        #     for kv, k2v, kl in cfg.x.hh_points.vbf
+        # }
 
     # dataset groups for conveniently looping over certain datasets
     # (used in wrapper_factory and during plotting)
@@ -786,7 +786,18 @@ def add_config(
             if re.match(r"^(hh_ggf_hbb_htt_.+|tt_(sl|dl|fh)_powheg|dy(_tautau)?_m50toinf_.*amcatnlo)$", dataset.name)
         ],
     }
+    cfg.x.process_groups["bkg_dy_split"] = [
+    p for p in cfg.x.process_groups["backgrounds"] if p != "dy"
+] + [
+    "dy_tautau_m50toinf_1j","dy_tautau_m50toinf_0j","dy_tautau_m50toinf_2j",
+    "dy_m50toinf",
+    "dy_m50toinf_0j","dy_m50toinf_1j","dy_m50toinf_2j",
+    # "dy_tautau_m50toinf_1j_filtered","dy_tautau_m50toinf_0j_filtered","dy_tautau_m50toinf_2j_filtered"
+]
+ 
+    # from IPython  import embed;embed()
 
+    cfg.x.process_groups["bkg_data_dy_split"] = ["data"] + cfg.x.process_groups["bkg_dy_split"]
     # category groups for conveniently looping over certain categories
     # (used during plotting)
     cfg.x.category_groups = {
@@ -821,7 +832,15 @@ def add_config(
     cfg.x.selector_step_groups = {
         "all": [],
         "none": ["bad", "mc_filter", "json"],
-        "default": ["bad", "mc_filter", "json", "trigger", "met_filter", "jet_veto_map", "lepton", "jet2"],
+        "default": ["bad", "mc_filter", "json", "trigger", "met_filter", "jet_veto_map", "lepton","jet2"],
+        "fine":["bad", "mc_filter", "json", "trigger", "met_filter", "lepton_trigger_fired",
+        "lepton_acceptance",
+        "lepton_id",
+        "lepton_trigger_offline",
+        "lepton_trigger_matching",
+        "lepton_os_iso",
+        "lepton_vetoes",
+        "lepton","jet","jet2"],
         "no_jet": ["bad", "mc_filter", "json", "trigger", "met_filter", "jet_veto_map", "lepton"],
     }
     cfg.x.default_selector_steps = "all"

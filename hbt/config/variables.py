@@ -277,6 +277,24 @@ def add_variables(config: od.Config) -> None:
         binning=(60, 0, 3),
         x_title="b-tag weight (UParT)",
     )
+    add_variable(
+        name="dy_weight",
+        expression="dy_weight",
+        binning=(40, 0, 2),
+        x_title="DY weight",
+    )
+    add_variable(
+        name="tau_weight",
+        expression="tau_weight",
+        binning=(50, 0.75, 1.25),
+        x_title="tau weight",
+    )
+    add_variable(
+        name="trigger_weight",
+        expression="trigger_weight",
+        binning=(50, 0.75, 1.25),
+        x_title="trigger weight",
+    )
 
     # cutflow variables
     add_variable(
@@ -523,7 +541,6 @@ def add_variables(config: od.Config) -> None:
         binning=(30, 0, 6),
         x_title=r"$\Delta R_{ll,bb}$ (visible)",
     )
-
     # regressed hh variables
     add_variable(
         name="hh_reg_energy",
@@ -693,6 +710,31 @@ def add_variables(config: od.Config) -> None:
         binning=(66, -3.3, 3.3),
         x_title=r"Subleading tau $\phi$",
     )
+    add_variable(
+        name="tau1_PNetTauVsJet",
+        expression="Tau.rawPNetVSjet[:,0]",
+        binning=(50,0.5,1),
+        x_title="Leading tau PNetTauVsJet"
+    )
+    add_variable(
+        name="tau2_PNetTauVsJet",
+        expression="Tau.rawPNetVSjet[:,1]",
+        binning=(50,0.5,1),
+        x_title="Subleading tau PNetTauVsJet"
+    )
+    add_variable(
+        name="tau1_DeepTauVsJet",
+        expression="Tau.rawDeepTau2018v2p5VSjet[:,0]",
+        binning=(50,0.8,1),
+        x_title="Leading tau DeepTauVsJet"
+    )
+    add_variable(
+        name="tau2_DeepTauVsJet",
+        expression="Tau.rawDeepTau2018v2p5VSjet[:,1]",
+        binning=(50,0,1),
+        x_title= "Subleading tau DeeptauVsJet"
+    )
+   
 
     # single mu
     add_variable(
