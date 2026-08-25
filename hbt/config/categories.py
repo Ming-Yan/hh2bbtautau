@@ -86,7 +86,30 @@ def add_categories(config: od.Config) -> None:
     _add_category(name="boosted_cc", selection="cat_boosted_cc", label="Boosted", tags={"skip_cutflow"})
     _add_category(name="res1b_inclvbf_cc", selection="cat_res1b_inclvbf_cc", label="Resolved, ggF, 1 b-tag", tags={"skip_cutflow"})  # noqa: E501
     _add_category(name="res2b_inclvbf_cc", selection="cat_res2b_inclvbf_cc", label=r"Resolved, ggF, $\geq$2 b-tags", tags={"skip_cutflow"})  # noqa: E501
-
+    ### fix_pnet
+    _add_category(name="res1b_invH_cc", selection="cat_invHres1b_cc", label="Resolved, ggF,inv $m_H$, 1 b-tag", tags={"skip_cutflow"})
+    _add_category(name="res2b_invH_cc", selection="cat_invHres2b_cc", label=r"Resolved, ggF, inv $m_H$,$\geq$2 b-tags", tags={"skip_cutflow"})  # noqa: E501
+    _add_category(name="invH2b",selection="cat_invH_2b", label="~ $m_{\tau\tau}$+$m_{bb}$ mass, 2b ")
+    _add_category(name="invH1b",selection="cat_invH_1b", label="~ $m_{\tau\tau}$+$m_{bb}$ mass, 1b")
+    _add_category(name="invb1b",selection="cat_invb_1b", label="~$m_{bb}$  mass, 1b ")
+    _add_category(name="invt1b",selection="cat_invtau_1b", label="~$m_{\\tau\\tau}$ mass, 1b")
+    _add_category(name="mll501b",selection="cat_mll50_1b", label="$m_{\\tau\\tau}$>50, 1b")
+    _add_category(name="2b",selection="cat_2b", label="2b ")
+    _add_category(name="1b",selection="cat_1b", label="1b")
+    ## test
+    # _add_category(name="taudm0",selection="cat_taudm0", label="tau dm0 dm0", tags={"skip_cutflow"})
+    # _add_category(name="taudm2",selection="cat_taudm2", label="tau dm1 dm1", tags={"skip_cutflow"})
+    # _add_category(name="taudm20",selection="cat_taudm20", label="tau dm10 dm10", tags={"skip_cutflow"})
+    # _add_category(name="taudm22",selection="cat_taudm22", label="tau dm11 dm11", tags={"skip_cutflow"})
+    # _add_category(name="taudm1",selection="cat_taudm1", label="tau dm1 dm0", tags={"skip_cutflow"})
+    # _add_category(name="taudm10",selection="cat_taudm10", label="tau dm10 dm0", tags={"skip_cutflow"})
+    # _add_category(name="taudm110",selection="cat_taudm110", label="tau dm11 dm0", tags={"skip_cutflow"})
+    # _add_category(name="taudm101",selection="cat_taudm101", label="tau dm10 dm1", tags={"skip_cutflow"})
+    # _add_category(name="taudm12",selection="cat_taudm12", label="tau dm10 dm11", tags={"skip_cutflow"})
+    # _add_category(name="taudm21",selection="cat_taudm21", label="tau dm1 dm11", tags={"skip_cutflow"})
+    # _add_category(name="cross_vbf",selection="cat_cross_vbf",label = "cross vbf", tags={"skip_cutflow"})
+    # _add_category(name="cross_tautaujet",selection="cat_cross_tautaujet",label = "cross tautau jet", tags={"skip_cutflow"})
+    # _add_category(name="cross_tautau",selection="cat_cross_tautau",label = "cross tautau", tags={"skip_cutflow"})
     #
     # build groups
     #
@@ -127,7 +150,11 @@ def add_categories(config: od.Config) -> None:
             [
                 "incl", "res1b", "res2b", "boosted", "res1b_novbf", "res2b_novbf", "boosted_novbf",
                 "res1b_cc", "res2b_cc", "vbf_cc", "boosted_cc", "res1b_inclvbf_cc", "res2b_inclvbf_cc",
-                "eq0b", "eq1b", "eq2b", "ge2b", "ge3b",
+                # "invH2b","invH1b","1b","2b","res1b_invH_cc","res2b_invH_cc","invt1b","invb1b","mll501b"# invmass
+
+                "eq0b", "eq1b", "eq2b", "ge2b", "ge3b",#prod28
+            #    "taudm0","taudm2","taudm20","taudm22","taudm1","taudm10","taudm110","taudm101","taudm12","taudm21",
+            #    "cross_tautau","cross_tautaujet","cross_vbf" #
             ],
             is_complete=True,
             has_overlap=True,
@@ -182,6 +209,36 @@ def add_categories(config: od.Config) -> None:
     )
 
     # additional combined categories
+    _add_category(
+        name="etau__incl",
+        label= r"e$\tau$, inclusive (no iso,charge selection)",
+        categories=[
+            config.get_category("etau__incl__os__iso"),
+            config.get_category("etau__incl__os__noniso"),
+            config.get_category("etau__incl__ss__iso"),
+            config.get_category("etau__incl__ss__noniso"),
+        ],
+    )
+    _add_category(
+        name="mutau__incl",
+        label= r"$\mu\tau$, inclusive (no iso,charge selection)",
+        categories=[
+            config.get_category("mutau__incl__os__iso"),
+            config.get_category("mutau__incl__os__noniso"),
+            config.get_category("mutau__incl__ss__iso"),
+            config.get_category("mutau__incl__ss__noniso"),
+        ],
+    )
+    _add_category(
+        name="tautau__incl",
+        label= r"$\tau\tau$, inclusive (no iso,charge selection)",
+        categories=[
+            config.get_category("tautau__incl__os__iso"),
+            config.get_category("tautau__incl__os__noniso"),
+            config.get_category("tautau__incl__ss__iso"),
+            config.get_category("tautau__incl__ss__noniso"),
+        ],
+    )
     _add_category(
         name="incl__os__iso",
         label=r"$e\tau/\mu\tau/\tau\tau$, inclusive",

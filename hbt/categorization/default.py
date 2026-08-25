@@ -99,7 +99,16 @@ def cat_noniso(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array,
     ch_tautau = self.config_inst.channels.n.tautau
     return events, events.num_taus_iso == ak.where(events.channel_id == ch_tautau.id, 1, 0)
 
+# @categorizer(uses={"tau2_isolated"})
+# def cat_iso(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+#     # isolated tau2
+#     return events, events.tau2_isolated == 1
 
+
+# @categorizer(uses={"tau2_isolated"})
+# def cat_noniso(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+#     # noon-isolated tau2
+#     return events, events.tau2_isolated == 0
 #
 # additional special regions
 #
@@ -473,3 +482,180 @@ def cat_tt(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.
 def cat_tt_init(self: Categorizer, **kwargs) -> None:
     super(cat_tt, self).init_func(**kwargs)
     self.uses.add(f"{self.config_inst.x.met_name}.{{pt,phi}}")
+
+@categorizer(
+    uses={cat_boosted_cc, cat_vbf_cc, hhbjet_multiplicity, cat_hh_reg_mass_window_cc},
+    n_btags=None,  # needs to be set
+    n_btags_op=None,  # needs to be set
+    reject_boosted=True,
+    reject_vbf=True,
+)
+def _cat_invH_res_cc(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    mask = (
+        (~self[cat_hh_reg_mass_window_cc](events, **kwargs)[1]) &
+        (~self[cat_boosted_cc](events, **kwargs)[1] if self.reject_boosted else True) &
+        (~self[cat_vbf_cc](events, **kwargs)[1] if self.reject_vbf else True) &
+        (self.n_btags_op(self[hhbjet_multiplicity](events, **kwargs), self.n_btags))
+    )
+    return events, mask
+cat_invHres1b_cc = _cat_invH_res_cc.derive("cat_invHres1b_cc", cls_dict={"n_btags": 1, "n_btags_op": operator.eq})
+cat_invHres2b_cc = _cat_invH_res_cc.derive("cat_invHres2b_cc", cls_dict={"n_btags": 2, "n_btags_op": operator.ge})
+
+
+### 
+    
+
+@categorizer(
+    uses={di_bjet_mass_window, hhbjet_multiplicity},
+)
+def cat_invb_1b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    events, bjet_mass_mask = self[di_bjet_mass_window](events, **kwargs)
+    mask = (
+        (self[hhbjet_multiplicity](events, **kwargs) == 1) &
+        (~bjet_mass_mask)
+    )
+    return events, mask
+
+@categorizer(
+    uses={ di_tau_mass_window, hhbjet_multiplicity},
+)
+def cat_invtau_1b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    events, tau_mass_mask = self[di_tau_mass_window](events, **kwargs)
+
+    mask = (
+        (self[hhbjet_multiplicity](events, **kwargs) == 1) &
+        (~tau_mass_mask)
+    )
+    return events, mask
+
+@categorizer(
+    uses={hhbjet_multiplicity},
+)
+def cat_mll50_1b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    leptons = [events.Electron * 1, events.Muon * 1, events.Tau * 1]
+    di_tau_mass = ak_concatenate_safe(leptons, axis=1)[:, :2].sum(axis=1).mass
+    mask = (
+        (self[hhbjet_multiplicity](events, **kwargs) == 1) &
+        (di_tau_mass >= 50)
+    )
+    return events, mask
+
+@categorizer(
+    uses={ hhbjet_multiplicity},
+)
+def cat_0b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    mask = (
+	(self[hhbjet_multiplicity](events, **kwargs) == 0) 
+    )
+    return events, mask
+    
+
+
+@categorizer(
+    uses={ hhbjet_multiplicity},
+)
+def cat_1b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    mask = (
+	(self[hhbjet_multiplicity](events, **kwargs) == 1) 
+    )
+    return events, mask
+@categorizer(
+    uses={ hhbjet_multiplicity},
+)
+def cat_2b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    mask = (
+	(self[hhbjet_multiplicity](events, **kwargs) >= 2) 
+    )
+    return events, mask
+@categorizer(
+    uses={di_bjet_mass_window, di_tau_mass_window, hhbjet_multiplicity},
+)
+def cat_invH_1b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    events, tau_mass_mask = self[di_tau_mass_window](events, **kwargs)
+    events, bjet_mass_mask = self[di_bjet_mass_window](events, **kwargs)
+    mask = (
+        (self[hhbjet_multiplicity](events, **kwargs) ==1) &
+        (~tau_mass_mask&~bjet_mass_mask)
+    )
+    return events, mask
+
+@categorizer(
+    uses={di_bjet_mass_window, di_tau_mass_window, hhbjet_multiplicity},
+)
+def cat_invH_2b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    events, tau_mass_mask = self[di_tau_mass_window](events, **kwargs)
+    events, bjet_mass_mask = self[di_bjet_mass_window](events, **kwargs)
+    mask = (
+        (self[hhbjet_multiplicity](events, **kwargs) >= 2) &
+        (~tau_mass_mask&~bjet_mass_mask)
+    )
+    return events, mask
+
+######### FOR TESTING
+
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm0(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events,(tau1_dm+tau2_dm==0)
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm2(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events,(tau1_dm+tau2_dm==2)
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm20(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events,(tau1_dm+tau2_dm==20)
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm22(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events,(tau1_dm+tau2_dm==22)  
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm10(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events,(tau1_dm+tau2_dm==10)
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm101(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events, ((tau1_dm==10)&(tau2_dm==1) | (tau1_dm==1)&(tau2_dm==10))
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm1(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events,(tau1_dm+tau2_dm==1)
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm110(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events, ((tau1_dm==11)&(tau2_dm==0) | (tau1_dm==0)&(tau2_dm==11))
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm12(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events, (tau1_dm+tau2_dm==12)
+
+@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
+def cat_taudm21(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
+    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
+    return events,(tau1_dm+tau2_dm==21)
+
+@categorizer(uses={hhbjet_multiplicity,"matched_trigger_ids"})
+def cat_cross_tautau(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    mask = ak.any(events.matched_trigger_ids == 507, axis=1) 
+    return events, mask
+
+@categorizer(uses={hhbjet_multiplicity,"matched_trigger_ids"})
+def cat_cross_tautaujet(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    mask = ak.any(events.matched_trigger_ids == 701, axis=1) 
+    return events, mask
+
+@categorizer(uses={hhbjet_multiplicity,"matched_trigger_ids"})
+def cat_cross_vbf(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    mask = ak.any((events.matched_trigger_ids <700)&(events.matched_trigger_ids >600), axis=1) 
+    return events, mask
