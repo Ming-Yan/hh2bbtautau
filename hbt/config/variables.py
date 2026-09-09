@@ -713,13 +713,13 @@ def add_variables(config: od.Config) -> None:
     add_variable(
         name="tau1_PNetTauVsJet",
         expression="Tau.rawPNetVSjet[:,0]",
-        binning=(50,0.5,1),
+        binning=(40,0.8,1),
         x_title="Leading tau PNetTauVsJet"
     )
     add_variable(
         name="tau2_PNetTauVsJet",
         expression="Tau.rawPNetVSjet[:,1]",
-        binning=(50,0.5,1),
+        binning=(40,0.8,1),
         x_title="Subleading tau PNetTauVsJet"
     )
     add_variable(

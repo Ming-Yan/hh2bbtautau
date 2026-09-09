@@ -406,7 +406,7 @@ def muon_trigger_matching(
 
 @selector(
     uses={
-        "Tau.{pt,eta,phi,dz,decayMode}",
+        "Tau.{pt,eta,phi,dz,decayMode,rawPNetVSjet,rawPNetVSe,rawPNetVSmu}",
         "{Electron,Muon,TrigObj}.{pt,eta,phi}",
         IF_MC("Tau.genPartFlav"),
     },
@@ -482,8 +482,9 @@ def tau_selection(
         (abs(events.Tau.eta) < max_eta) &
         (events.Tau.pt > base_pt) &
         (abs(events.Tau.dz) < 0.2) &
-        reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
-        (events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet.vvvloose)
+        # reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
+        # (events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet.vvvloose)
+        (events.Tau.rawPNetVSjet >= self.config_inst.x.pnettau_working_points.vs_jet.vvvloose)
         # vs e and mu cuts are channel dependent and thus applied in the overall lepton selection
     )
     tau_stages["id"]= base_mask
@@ -497,7 +498,8 @@ def tau_selection(
     trigger_specific_mask = base_mask & (events.Tau.pt > min_pt)
     tau_stages["trigger_offline"] = trigger_specific_mask
     # compute the isolation mask separately as it is used to defined (qcd) categories later on
-    iso_mask = events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # noqa: E501
+    # iso_mask = events.Tau[get_tau_tagger("jet")] >= self.config_inst.x.deeptau_ids.vs_jet[self.config_inst.x.deeptau_wps.vs_jet]  # noqa: E501
+    iso_mask = events.Tau.rawPNetVSjet >= self.config_inst.x.pnettau_working_points.vs_jet[self.config_inst.x.pnet_wps.vs_jet] 
    
     return base_mask, trigger_specific_mask, iso_mask, tau_stages
 
@@ -818,7 +820,8 @@ def lepton_selection(
     # indices for sorting taus first by isolation, then by pt
     # for this, combine iso and pt values, e.g. iso 255 and pt 32.3 -> 2550032.3
     f = 10**(np.ceil(np.log10(ak.max(events.Tau.pt) or 0.0)) + 2)
-    tau_sorting_key = events.Tau[f"raw{self.config_inst.x.tau_tagger}VSjet"] * f + events.Tau.pt
+    # tau_sorting_key = events.Tau[f"raw{self.config_inst.x.tau_tagger}VSjet"] * f + events.Tau.pt
+    tau_sorting_key = events.Tau[f"raw{self.config_inst.x.tau_taggerPNET}VSjet"] * f + events.Tau.pt
     tau_sorting_indices = ak.argsort(tau_sorting_key, axis=-1, ascending=False)
     steps_lep = StepAccumulator(
     [
@@ -904,12 +907,26 @@ def lepton_selection(
             self.dataset_inst.has_tag("parking_vbf")
         ):
             # channel dependent deeptau cuts vs e and mu
+            # ch_base_tau_mask = (
+            #     tau_base_mask &
+            #     (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
+            #     (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.etau])  # noqa: E501
+            # )
+            # case with tau decay mode 0, 1, 10, 11: use deeptau vs e and mu
             ch_base_tau_mask = (
                 tau_base_mask &
-                (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
-                (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.etau])  # noqa: E501
+                (
+                    reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
+                    (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
+                    (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.etau])  # noqa: E501
+                )|
+                (
+                    ~reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
+                    (events.Tau.rawPNetVSe >= self.config_inst.x.pnettau_working_points.vs_e[self.config_inst.x.pnet_wps.vs_e]) &  # noqa: E501 #VVLoose
+                    (events.Tau.rawPNetVSmu >= self.config_inst.x.pnettau_working_points.vs_mu[self.config_inst.x.pnet_wps.vs_mu.etau])  # noqa: E501 tight
+                )
             )
-
+           
             # store whether the base offline selections cuts are passed for the different triggers
             # Warning: whether the trigger has fired or not is not relevant!
             relevant_full_triggers = {"single_e", "cross_e_tau"}
@@ -1041,10 +1058,23 @@ def lepton_selection(
             self.dataset_inst.has_tag("parking_vbf")
         ):
             # channel dependent deeptau cuts vs e and mu
+            # ch_base_tau_mask = (
+            #     tau_base_mask &
+            #     (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
+            #     (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.mutau])  # noqa: E501
+            # )
             ch_base_tau_mask = (
                 tau_base_mask &
-                (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
-                (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.mutau])  # noqa: E501
+                (
+                    reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
+                    (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
+                    (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.mutau])  # noqa: E501
+                )|
+                (
+                    ~reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
+                    (events.Tau.rawPNetVSe >= self.config_inst.x.pnettau_working_points.vs_e[self.config_inst.x.pnet_wps.vs_e]) &  # noqa: E501 #VVLoose
+                    (events.Tau.rawPNetVSmu >= self.config_inst.x.pnettau_working_points.vs_mu[self.config_inst.x.pnet_wps.vs_mu.mutau])  # noqa: E501 tight
+                )
             )
 
             # store whether the base offline selections cuts are passed for the different triggers
@@ -1177,10 +1207,23 @@ def lepton_selection(
             (self.dataset_inst.is_mc or self.dataset_inst.has_tag({"tautau", "parking_vbf", "parking_hh"}, mode=any))
         ):
             # channel dependent deeptau cuts vs e and mu
+            # ch_base_tau_mask = (
+            #     tau_base_mask &
+            #     (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
+            #     (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.tautau])  # noqa: E501
+            # )
             ch_base_tau_mask = (
                 tau_base_mask &
-                (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
-                (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.tautau])  # noqa: E501
+                (
+                    reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
+                    (events.Tau[get_tau_tagger("e")] >= self.config_inst.x.deeptau_ids.vs_e[self.config_inst.x.deeptau_wps.vs_e]) &  # noqa: E501
+                    (events.Tau[get_tau_tagger("mu")] >= self.config_inst.x.deeptau_ids.vs_mu[self.config_inst.x.deeptau_wps.vs_mu.tautau])  # noqa: E501
+                )|
+                (
+                    ~reduce(or_, [events.Tau.decayMode == mode for mode in (0, 1, 10, 11)]) &
+                    (events.Tau.rawPNetVSe >= self.config_inst.x.pnettau_working_points.vs_e[self.config_inst.x.pnet_wps.vs_e]) &  # noqa: E501 #VVLoose
+                    (events.Tau.rawPNetVSmu >= self.config_inst.x.pnettau_working_points.vs_mu[self.config_inst.x.pnet_wps.vs_mu.tautau])  # noqa: E501 tight
+                )
             )
 
             # store whether the base offline selections cuts are passed for the different triggers
@@ -1582,8 +1625,8 @@ def lepton_selection(
 
     return events, SelectionResult(
         steps={
-            **steps_lep.masks,
-            # "lepton": channel_id != 0,
+            # **steps_lep.masks,
+            "lepton": channel_id != 0,
         },
         objects={
             "Electron": {
@@ -1642,4 +1685,4 @@ def lepton_selection_init(self: Selector, **kwargs) -> None:
     super(lepton_selection, self).init_func(**kwargs)
 
     # add column to load the raw tau tagger score
-    self.uses.add(f"Tau.raw{self.config_inst.x.tau_tagger}VSjet")
+    self.uses.add(f"Tau.raw{self.config_inst.x.tau_taggerPNET}VSjet")

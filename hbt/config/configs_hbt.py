@@ -618,14 +618,14 @@ def add_config(
             f"hh_ggf_hbb_htt_kl{kl}_kt1"
             for kl, in cfg.x.hh_points.ggf
         ],
-        "signals_bbvv": [
-            "hh_ggf_hbb_hvv_kl1_kt1",
-            "hh_vbf_hbb_hvv_kv1_k2v1_kl1",
-        ],
-        "signals_bbvv_ggf": [
-            f"hh_ggf_hbb_hvv_kl{kl}_kt1"
-            for kl, in cfg.x.hh_points.ggf
-        ],
+        # "signals_bbvv": [
+        #     "hh_ggf_hbb_hvv_kl1_kt1",
+        #     "hh_vbf_hbb_hvv_kv1_k2v1_kl1",
+        # ],
+        # "signals_bbvv_ggf": [
+        #     f"hh_ggf_hbb_hvv_kl{kl}_kt1"
+        #     for kl, in cfg.x.hh_points.ggf
+        # ],
         "backgrounds": (backgrounds := [
             "tt",
             "dy",
@@ -719,7 +719,6 @@ def add_config(
                         ],
                     },
                 }
-
         # bbvv
         # vv_decays = ["qqlnu", "2l2nu", "4q", "2q2nu", "4nu", "4l", "2l2q"]
         # cfg.x.bbvv_stitching = {
@@ -740,6 +739,7 @@ def add_config(
         #         ],
         #     }
         #     for kv, k2v, kl in cfg.x.hh_points.vbf
+
         # }
 
     # dataset groups for conveniently looping over certain datasets
@@ -786,18 +786,8 @@ def add_config(
             if re.match(r"^(hh_ggf_hbb_htt_.+|tt_(sl|dl|fh)_powheg|dy(_tautau)?_m50toinf_.*amcatnlo)$", dataset.name)
         ],
     }
-    cfg.x.process_groups["bkg_dy_split"] = [
-    p for p in cfg.x.process_groups["backgrounds"] if p != "dy"
-] + [
-    "dy_tautau_m50toinf_1j","dy_tautau_m50toinf_0j","dy_tautau_m50toinf_2j",
-    "dy_m50toinf",
-    "dy_m50toinf_0j","dy_m50toinf_1j","dy_m50toinf_2j",
-    # "dy_tautau_m50toinf_1j_filtered","dy_tautau_m50toinf_0j_filtered","dy_tautau_m50toinf_2j_filtered"
-]
- 
-    # from IPython  import embed;embed()
+    # from IPython import embed;embed()
 
-    cfg.x.process_groups["bkg_data_dy_split"] = ["data"] + cfg.x.process_groups["bkg_dy_split"]
     # category groups for conveniently looping over certain categories
     # (used during plotting)
     cfg.x.category_groups = {
@@ -844,7 +834,7 @@ def add_config(
         "no_jet": ["bad", "mc_filter", "json", "trigger", "met_filter", "jet_veto_map", "lepton"],
     }
     cfg.x.default_selector_steps = "all"
-
+    cfg.x.dataset="hh_ggf_hbb_htt_kl1_kt1_powheg"
     # plotting overwrites
     from hbt.config.styles import setup_plot_styles
     setup_plot_styles(cfg)
@@ -1363,6 +1353,7 @@ def add_config(
     elif run == 3:
         # https://twiki.cern.ch/twiki/bin/view/CMS/TauIDRecommendationForRun3?rev=11
         cfg.x.tau_tagger = "DeepTau2018v2p5"
+        cfg.x.tau_taggerPNET = "PNet"
     else:
         assert False
 
@@ -1379,6 +1370,63 @@ def add_config(
             "vs_jet": {"vvvloose": 1, "vvloose": 2, "vloose": 3, "loose": 4, "medium": 5, "tight": 6, "vtight": 7, "vvtight": 8},  # noqa: E501
             "vs_mu": {"vloose": 1, "loose": 2, "medium": 3, "tight": 4},
         })
+    
+        tau_key=str(year) if year ==2024 else "2022"
+
+        cfg.x.pnettau_working_points = DotDict.wrap({    
+                "vs_jet":{
+                    "no":{"2022":0,"2024":0}[tau_key],
+                    #signal efficiency 98%
+                "vvvloose":{"2022":0.114, "2024":0.094}[tau_key], 
+                    #signal efficiency 95%
+                    "vvloose":{"2022":0.259, "2024":0.208}[tau_key],
+                    #signal efficiency 90%
+                    "vloose":{"2022":0.486, "2024":0.402}[tau_key], 
+                    #signal efficiency 80%
+                    "loose":{"2022":0.765, "2024":0.691}[tau_key], 
+                    #signal efficiency 70%
+                    "medium":{"2022":0.881, "2024":0.835}[tau_key], 
+                    #signal efficiency 60%
+                    "tight":{"2022":0.937, "2024":0.906}[tau_key], 
+                    #signal efficiency 50%
+                    "vtight":{"2022":0.968, "2024":0.949}[tau_key], 
+                    #signal efficiency 40%
+                    "vvtight":{"2022":0.982, "2024":0.974}[tau_key], 
+                },
+                "vs_e":{
+                    #signal efficiency 99.5%    
+                    "vvvloose":{"2022":0.148, "2024":0.153}[tau_key], 
+                    #signal efficiency 99%
+                    "vvloose":{"2022":0.4, "2024":0.387}[tau_key],
+                    #signal efficiency 98%
+                    "vloose":{"2022":0.747, "2024":0.727}[tau_key], 
+                    #signal efficiency 95%
+                    "loose":{"2022":0.956, "2024":0.949}[tau_key], 
+                    #signal efficiency 90%
+                    "medium":{"2022":0.983, "2024":0.981}[tau_key], 
+                    #signal efficiency 80%
+                    "tight":{"2022":0.992, "2024":0.991}[tau_key], 
+                    #signal efficiency 70%
+                    "vtight":{"2022":0.996, "2024":0.995}[tau_key], 
+                    #signal efficiency 60%
+                    "vvtight":{"2022":0.998, "2024":0.998}[tau_key], 
+                },
+                "vs_mu":{
+                    #signal efficiency 99.5%
+        
+                    "vloose":{"2022":0.747, "2024":0.727}[tau_key], 
+                    #signal efficiency 95%
+                    "loose":{"2022":0.956, "2024":0.949}[tau_key], 
+                    #signal efficiency 90%
+                    "medium":{"2022":0.983, "2024":0.981}[tau_key], 
+                    #signal efficiency 80%
+                    "tight":{"2022":0.992, "2024":0.991}[tau_key], 
+                    #signal efficiency 70%
+                    "vtight":{"2022":0.996, "2024":0.995}[tau_key], 
+                    #signal efficiency 60%
+                    "vvtight":{"2022":0.998, "2024":0.998}[tau_key], 
+                }
+        })
 
     # employed deeptau working points, potentially channel dependent
     cfg.x.deeptau_wps = DotDict.wrap({
@@ -1387,6 +1435,15 @@ def add_config(
             "etau": "tight",
             "mutau": "tight",
             "tautau": "vloose",
+        },
+        "vs_jet": "medium",
+    })
+    cfg.x.pnet_wps = DotDict.wrap({
+        "vs_e": "vvloose",#0.387
+        "vs_mu": {
+            "etau": "tight",#0.991
+            "mutau": "tight",
+            "tautau": "vloose",#0.727
         },
         "vs_jet": "medium",
     })
@@ -1940,6 +1997,8 @@ def add_config(
             2023: (cat_info.get_file("dc", "Cert_Collisions2023_366442_370790_Golden.json"), "v1"),
             # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=194#Year_2024
             2024: (cat_info.get_file("dc", "Cert_Collisions2024_378981_386951_Golden.json"), "v1"),
+            #https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=222#Year_2025
+            2025:(cat_info.get_file("dc", "Cert_Collisions2025_391658_398903_Golden"), "v1"),
         }[year],
         "normtag": {
             2016: ("/afs/cern.ch/user/l/lumipro/public/Normtags/normtag_PHYSICS.json", "v1"),
@@ -1951,6 +2010,7 @@ def add_config(
             2023: ("/cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json", "v1"),
             # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=194#Year_2024
             2024: ("/cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json", "v1"),
+            2025: ("/cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json", "v1"),
         }[year],
     })
     # pileup weight corrections
@@ -1982,7 +2042,8 @@ def add_config(
     # dnn models trained with run 2 legacy setup but run 3 data
     for fold in range(5):
         # for 2024, use version with btag for now, but we could also drop it since we have no full shape correction
-        basename = f"model_2024_v2_fold{fold}_btag_moe.tgz" if year == 2024 else f"model_fold{fold}_moe.tgz"
+        # basename = f"model_2024_v2_fold{fold}_btag_moe.tgz" if year == 2024 else f"model_fold{fold}_moe.tgz"
+        basename = f"model_2024_v2_tauid_fold{fold}_btag_moe.tgz"  if year == 2024 else f"model_fold{fold}_moe.tgz"
         add_external(f"run3_dnn_fold{fold}_moe", (f"{central_hbt_dir}/run3_models/run3_dnn/{basename}", "v1"))
     # and again with different kl setups (disabled since they were still run with the broken dy frequencies)
     # add_external("run3_dnn_simple_kl1", (f"{central_hbt_dir}/run3_models/run3_dnn_simple_kl1/model_fold0_seed1.tgz", "v1"))  # noqa: E501

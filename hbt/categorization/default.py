@@ -14,6 +14,7 @@ from columnflow.util import maybe_import
 
 from hbt.production.jet import jet_multiplicity, bjet_multiplicity
 from hbt.util import MET_COLUMN, stack_lvectors, create_lvector_xyz, rotate_px_py
+import functools
 
 ak = maybe_import("awkward")
 
@@ -98,6 +99,7 @@ def cat_noniso(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array,
     # non-isolated region should contain exactly 1 iso tau for tautau channel
     ch_tautau = self.config_inst.channels.n.tautau
     return events, events.num_taus_iso == ak.where(events.channel_id == ch_tautau.id, 1, 0)
+
 
 # @categorizer(uses={"tau2_isolated"})
 # def cat_iso(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
@@ -233,6 +235,15 @@ def di_bjet_mass_window(self: Categorizer, events: ak.Array, **kwargs) -> tuple[
     )
     return events, mask
 
+
+@categorizer(uses={"{Electron,Muon,Tau}.{mass,pt,eta,phi}"})
+def cat_dilep35(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    leptons = ak.concatenate([events.Electron * 1, events.Muon * 1, events.Tau * 1], axis=1)
+    leptons = leptons[ak.argsort(leptons.pt, axis=1, ascending=False)]
+    lepton_pt = ak.pad_none(leptons.pt, 2, axis=1)
+    # sorted descending, so the subleading cut implies the leading one
+    mask = ak.fill_none(lepton_pt[:, 1] > 35.0, False)
+    return events, mask
 
 @categorizer(uses={"Tau.{mass,pt,eta,phi}"})
 def di_tau_mass_window(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
@@ -591,60 +602,65 @@ def cat_invH_2b(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array
     )
     return events, mask
 
+
 ######### FOR TESTING
 
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm0(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events,(tau1_dm+tau2_dm==0)
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm2(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events,(tau1_dm+tau2_dm==2)
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm20(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events,(tau1_dm+tau2_dm==20)
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm22(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events,(tau1_dm+tau2_dm==22)  
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm10(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events,(tau1_dm+tau2_dm==10)
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm101(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events, ((tau1_dm==10)&(tau2_dm==1) | (tau1_dm==1)&(tau2_dm==10))
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm1(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events,(tau1_dm+tau2_dm==1)
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm110(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events, ((tau1_dm==11)&(tau2_dm==0) | (tau1_dm==0)&(tau2_dm==11))
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm12(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events, (tau1_dm+tau2_dm==12)
+DM_VALUES = [0, 1, 10, 11]
+def _std_dm_counts(self: Categorizer, events: ak.Array) -> tuple[ak.Array, ak.Array, ak.Array]:
+    n_expected = ak.where(
+        events.channel_id == self.config_inst.channels.n.tautau.id, 2, 1,
+    )
+    dm = events.Tau.decayMode
+    dm = dm[ak.local_index(dm, axis=1) < n_expected]
+    is_std = functools.reduce(operator.or_, (dm == v for v in DM_VALUES))
+    return n_expected, ak.num(dm, axis=1), ak.sum(is_std, axis=1)
+def _make_dm_origin_categorizer(name: str, mode: str):
+    def func(self: Categorizer, events: ak.Array, mode=mode, **kwargs):
+        n_expected, n_taus, n_std = _std_dm_counts(self, events)
+        valid = n_taus == n_expected
+        if mode == "orig":
+            mask = valid & (n_std == n_expected)
+        elif mode == "pnet":
+            mask = valid & (n_std == 0)
+        else:  # mixed
+            mask = valid & (n_std > 0) & (n_std < n_expected)
+        return events, ak.fill_none(mask, False)
 
-@categorizer(uses={hhbjet_multiplicity,"{Tau}.{pt,eta,phi,mass,decayMode}"})
-def cat_taudm21(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
-    tau1_dm = ak.firsts(events.Tau.decayMode, axis=1)
-    tau2_dm= ak.firsts(events.Tau.decayMode[:, 1:], axis=1)
-    return events,(tau1_dm+tau2_dm==21)
+    func.__name__ = f"cat_dmorigin_{name}"
+    return categorizer(uses={"channel_id", "Tau.decayMode"})(func)
 
+
+for name in ["orig", "mixed", "pnet"]:
+    cat = _make_dm_origin_categorizer(name, name)
+    globals()[cat.cls_name] = cat
+
+
+       
+def _leading_tau_dms(events: ak.Array) -> tuple[ak.Array, ak.Array]:
+    dm = ak.pad_none(events.Tau.decayMode, 2, axis=1)
+    return dm[:, 0], dm[:, 1]
+
+
+def _make_dm_pair_categorizer(dm1: int, dm2: int, symmetric: bool = True):
+    def func(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+        tau1_dm, tau2_dm = _leading_tau_dms(events)
+        mask = (tau1_dm == dm1) & (tau2_dm == dm2)
+        if symmetric and dm1 != dm2:
+            mask = mask | ((tau1_dm == dm2) & (tau2_dm == dm1))
+        return events, ak.fill_none(mask, False)
+
+    func.__name__ = f"cat_tau_dm{dm1}_dm{dm2}"
+    return categorizer(uses={"Tau.decayMode"})(func)
+
+
+
+tau_dm_categorizers = {}
+for i, dm1 in enumerate(DM_VALUES):
+    for dm2 in DM_VALUES[i:]:
+        cat = _make_dm_pair_categorizer(dm1, dm2)
+        tau_dm_categorizers[(dm1, dm2)] = cat
+        globals()[cat.cls_name] = cat  
+        
 @categorizer(uses={hhbjet_multiplicity,"matched_trigger_ids"})
 def cat_cross_tautau(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
     mask = ak.any(events.matched_trigger_ids == 507, axis=1) 

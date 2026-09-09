@@ -96,17 +96,25 @@ def add_categories(config: od.Config) -> None:
     _add_category(name="mll501b",selection="cat_mll50_1b", label="$m_{\\tau\\tau}$>50, 1b")
     _add_category(name="2b",selection="cat_2b", label="2b ")
     _add_category(name="1b",selection="cat_1b", label="1b")
+    _add_category(name="mixed",selection="cat_dmorigin_mixed", label="PNet recovered 1 taus")
+    _add_category(name="pnet",selection="cat_dmorigin_pnet", label="PNet recovered 2 taus")
+    _add_category(name="hps",selection="cat_dmorigin_orig", label="HPS taus")
+    # _add_category(name="lep35",selection="cat_dilep35", label="lep pT>35 GeV")
     ## test
-    # _add_category(name="taudm0",selection="cat_taudm0", label="tau dm0 dm0", tags={"skip_cutflow"})
-    # _add_category(name="taudm2",selection="cat_taudm2", label="tau dm1 dm1", tags={"skip_cutflow"})
-    # _add_category(name="taudm20",selection="cat_taudm20", label="tau dm10 dm10", tags={"skip_cutflow"})
-    # _add_category(name="taudm22",selection="cat_taudm22", label="tau dm11 dm11", tags={"skip_cutflow"})
-    # _add_category(name="taudm1",selection="cat_taudm1", label="tau dm1 dm0", tags={"skip_cutflow"})
-    # _add_category(name="taudm10",selection="cat_taudm10", label="tau dm10 dm0", tags={"skip_cutflow"})
-    # _add_category(name="taudm110",selection="cat_taudm110", label="tau dm11 dm0", tags={"skip_cutflow"})
-    # _add_category(name="taudm101",selection="cat_taudm101", label="tau dm10 dm1", tags={"skip_cutflow"})
-    # _add_category(name="taudm12",selection="cat_taudm12", label="tau dm10 dm11", tags={"skip_cutflow"})
-    # _add_category(name="taudm21",selection="cat_taudm21", label="tau dm1 dm11", tags={"skip_cutflow"})
+    DM_PAIRS = [
+    (0, 0), (0, 1), (0, 10), (0, 11),
+    (1, 1), (1, 10), (1, 11),
+    (10, 10), (10, 11),
+    (11, 11),
+    ]
+    DM_LABELS = {0: "1h", 1: "1h1$\\pi_0$", 10: "3h", 11: "3h1$\\pi_0$"}
+
+    for i, (dm1, dm2) in enumerate(DM_PAIRS):
+        _add_category(
+            name=f"dm{dm1}_dm{dm2}",
+            selection=f"cat_tau_dm{dm1}_dm{dm2}",
+            label=f"{DM_LABELS[dm1]}-{DM_LABELS[dm2]}",
+        )
     # _add_category(name="cross_vbf",selection="cat_cross_vbf",label = "cross vbf", tags={"skip_cutflow"})
     # _add_category(name="cross_tautaujet",selection="cat_cross_tautaujet",label = "cross tautau jet", tags={"skip_cutflow"})
     # _add_category(name="cross_tautau",selection="cat_cross_tautau",label = "cross tautau", tags={"skip_cutflow"})
@@ -140,7 +148,8 @@ def add_categories(config: od.Config) -> None:
                 if cat.label and cat.name != "os" and cat.name != "iso"  # os and iso are the defaults
             ]) or None,
         }
-
+    dm= [f"dm{dm1}_dm{dm2}" for dm1, dm2 in DM_PAIRS]
+    
     # main analysis categories
     main_categories = {
         # channels first
@@ -150,19 +159,29 @@ def add_categories(config: od.Config) -> None:
             [
                 "incl", "res1b", "res2b", "boosted", "res1b_novbf", "res2b_novbf", "boosted_novbf",
                 "res1b_cc", "res2b_cc", "vbf_cc", "boosted_cc", "res1b_inclvbf_cc", "res2b_inclvbf_cc",
+                "mixed","pnet","hps"
                 # "invH2b","invH1b","1b","2b","res1b_invH_cc","res2b_invH_cc","invt1b","invb1b","mll501b"# invmass
+                # *dm,"lep35"
+                # "eq0b", "eq1b", "eq2b", "ge2b", "ge3b",#prod28
 
-                "eq0b", "eq1b", "eq2b", "ge2b", "ge3b",#prod28
             #    "taudm0","taudm2","taudm20","taudm22","taudm1","taudm10","taudm110","taudm101","taudm12","taudm21",
             #    "cross_tautau","cross_tautaujet","cross_vbf" #
             ],
             is_complete=True,
             has_overlap=True,
         ),
+        "nb":CategoryGroup(["eq0b", "eq1b", "eq2b", "ge0b", "ge2b"], is_complete=True, has_overlap=True),
         # qcd regions last
         "sign": CategoryGroup(["os", "ss"], is_complete=True, has_overlap=False),
         "tau2": CategoryGroup(["iso", "noniso"], is_complete=True, has_overlap=False),
     }
+    def skip_fn(categories: dict[str, od.Category]) -> bool:
+        ch, dm = categories.get("channel"), categories.get("kin")
+        # drop any dm combination that isn't in tautau
+        if ch=="tautau":return False
+        if "dm" in dm.name and ch.name != "tautau":return True
+        if "mixed" in dm.name and ch.name != "tautau":return True
+        else: return False
 
     create_category_combinations(
         config=config,
@@ -171,7 +190,20 @@ def add_categories(config: od.Config) -> None:
         parent_mode="safe",
         kwargs_fn=functools.partial(kwargs_fn, add_qcd_group=True),
         skip_existing=False,
+        skip_fn=skip_fn,
     )
+       # _add_category(
+    #     name="mutau__incl",
+    #     label= r"$\mu\tau$, inclusive (no iso,charge selection)",
+    #     categories=[
+    #         config.get_category("mutau__incl__os__iso"),
+    #         config.get_category("mutau__incl__os__noniso"),
+    #         config.get_category("mutau__incl__ss__iso"),
+    #         config.get_category("mutau__incl__ss__noniso"),
+    #     ],
+    # ))
+
+
 
     # control categories
     control_categories = {
@@ -209,44 +241,44 @@ def add_categories(config: od.Config) -> None:
     )
 
     # additional combined categories
-    _add_category(
-        name="etau__incl",
-        label= r"e$\tau$, inclusive (no iso,charge selection)",
-        categories=[
-            config.get_category("etau__incl__os__iso"),
-            config.get_category("etau__incl__os__noniso"),
-            config.get_category("etau__incl__ss__iso"),
-            config.get_category("etau__incl__ss__noniso"),
-        ],
-    )
-    _add_category(
-        name="mutau__incl",
-        label= r"$\mu\tau$, inclusive (no iso,charge selection)",
-        categories=[
-            config.get_category("mutau__incl__os__iso"),
-            config.get_category("mutau__incl__os__noniso"),
-            config.get_category("mutau__incl__ss__iso"),
-            config.get_category("mutau__incl__ss__noniso"),
-        ],
-    )
-    _add_category(
-        name="tautau__incl",
-        label= r"$\tau\tau$, inclusive (no iso,charge selection)",
-        categories=[
-            config.get_category("tautau__incl__os__iso"),
-            config.get_category("tautau__incl__os__noniso"),
-            config.get_category("tautau__incl__ss__iso"),
-            config.get_category("tautau__incl__ss__noniso"),
-        ],
-    )
-    _add_category(
-        name="incl__os__iso",
-        label=r"$e\tau/\mu\tau/\tau\tau$, inclusive",
-        categories=[
-            config.get_category("etau__incl__os__iso"),
-            config.get_category("mutau__incl__os__iso"),
-            config.get_category("tautau__incl__os__iso"),
-        ],
-    )
+    # _add_category(
+    #     name="etau__incl",
+    #     label= r"e$\tau$, inclusive (no iso,charge selection)",
+    #     categories=[
+    #         config.get_category("etau__incl__os__iso"),
+    #         config.get_category("etau__incl__os__noniso"),
+    #         config.get_category("etau__incl__ss__iso"),
+    #         config.get_category("etau__incl__ss__noniso"),
+    #     ],
+    # )
+    # _add_category(
+    #     name="mutau__incl",
+    #     label= r"$\mu\tau$, inclusive (no iso,charge selection)",
+    #     categories=[
+    #         config.get_category("mutau__incl__os__iso"),
+    #         config.get_category("mutau__incl__os__noniso"),
+    #         config.get_category("mutau__incl__ss__iso"),
+    #         config.get_category("mutau__incl__ss__noniso"),
+    #     ],
+    # )
+    # _add_category(
+    #     name="tautau__incl",
+    #     label= r"$\tau\tau$, inclusive (no iso,charge selection)",
+    #     categories=[
+    #         config.get_category("tautau__incl__os__iso"),
+    #         config.get_category("tautau__incl__os__noniso"),
+    #         config.get_category("tautau__incl__ss__iso"),
+    #         config.get_category("tautau__incl__ss__noniso"),
+    #     ],
+    # )
+    # _add_category(
+    #     name="incl__os__iso",
+    #     label=r"$e\tau/\mu\tau/\tau\tau$, inclusive",
+    #     categories=[
+    #         config.get_category("etau__incl__os__iso"),
+    #         config.get_category("mutau__incl__os__iso"),
+    #         config.get_category("tautau__incl__os__iso"),
+    #     ],
+    # )
 
     id_cache.close()
