@@ -76,6 +76,7 @@ def add_hooks(analysis_inst: od.Analysis) -> None:
         # strategy for shape transfer
         shape_transfer: Literal["from_os_noniso", "from_ss_iso"] = "from_os_noniso",
         second_axis_name: str = "shift",  # NEW: "shift" for regular plots, "step" for cutflow
+        differential_transfer_factor: bool = False,  
 
         **kwargs,
     ) -> dict[od.Process, Any]:
@@ -232,12 +233,22 @@ def add_hooks(analysis_inst: od.Analysis) -> None:
 
             # helper to warn about negative bins
             def warn_negative_bins(neg_mask: np.ndarray, region_name: str) -> None:
-                if neg_mask.any():
-                    shift_ids = [sid for neg, sid in zip(neg_mask, mc_hist.axes["shift"]) if neg]
-                    shifts = list(map(config_inst.get_shift, shift_ids))
+                if not neg_mask.any():
+                    return
+                if neg_mask.ndim == 1:
+                    if second_axis_name == "shift":
+                        shift_ids = [sid for neg, sid in zip(neg_mask, mc_hist.axes["shift"]) if neg]
+                        bad = [s.name for s in map(config_inst.get_shift, shift_ids)]
+                    else:
+                        bad = [v for neg, v in zip(neg_mask, mc_hist.axes[second_axis_name]) if neg]
                     logger.warning(
-                        f"negative QCD integral in {region_name} region for group {group_name} and shifts: "
-                        f"{', '.join(shift.name for shift in shifts)}",
+                        f"negative QCD integral in {region_name} region for group {group_name}, "
+                        f"{second_axis_name}(s): {', '.join(map(str, bad))}",
+                    )
+                else:
+                    logger.warning(
+                        f"{int(neg_mask.sum())} negative differential transfer-factor bin(s) in "
+                        f"{region_name} region for group {group_name}",
                     )
 
             # re-assign histograms to BCD regions depending on shape transfer strategy
@@ -259,18 +270,30 @@ def add_hooks(analysis_inst: od.Analysis) -> None:
 
             # get integrals to compute the transfer factor
             # shapes: (SHIFT,)
-            c_int: sn.Number = integrate_num(c_data, axis=1) - integrate_num(c_mc, axis=1)
-            d_int: sn.Number = integrate_num(d_data, axis=1) - integrate_num(d_mc, axis=1)
+            if differential_transfer_factor:
+                 # bin-by-bin transfer factor: TF(x) = (C_data(x) - C_mc(x)) / (D_data(x) - D_mc(x))
+                c_ratio_num: sn.Number = c_data - c_mc
+                d_ratio_num: sn.Number = d_data - d_mc
 
-            # check negative integrals in shift bins
-            c_neg_mask = c_int() <= 0
-            warn_negative_bins(c_neg_mask, c_region_name)
-            d_neg_mask = d_int() <= 0
-            warn_negative_bins(d_neg_mask, d_region_name)
+                c_neg_mask = c_ratio_num() <= 0
+                warn_negative_bins(c_neg_mask, c_region_name)
+                d_neg_mask = d_ratio_num() <= 0
+                warn_negative_bins(d_neg_mask, d_region_name)
 
-            # ABCD method
-            # shape: (SHIFT, VAR)
-            qcd = qcd * ((c_int / d_int)[:, None])
+                qcd = qcd * (c_ratio_num / d_ratio_num)
+            else:
+                c_int: sn.Number = integrate_num(c_data, axis=1) - integrate_num(c_mc, axis=1)
+                d_int: sn.Number = integrate_num(d_data, axis=1) - integrate_num(d_mc, axis=1)
+
+                # check negative integrals in shift bins
+                c_neg_mask = c_int() <= 0
+                warn_negative_bins(c_neg_mask, c_region_name)
+                d_neg_mask = d_int() <= 0
+                warn_negative_bins(d_neg_mask, d_region_name)
+
+                # ABCD method
+                # shape: (SHIFT, VAR)
+                qcd = qcd * ((c_int / d_int)[:, None])
 
             # combine uncertainties and store values in bare arrays
             qcd_values = qcd()
@@ -298,9 +321,12 @@ def add_hooks(analysis_inst: od.Analysis) -> None:
             # retro-actively set values to zero for shifts that had negative integrals
             neg_int_mask = c_neg_mask | d_neg_mask
             if fill_empty_negative_norms:
-                qcd_values[neg_int_mask, :] = empty_bin_value
-                qcd_variances[neg_int_mask, :] = 0.0
-
+                if neg_int_mask.ndim == 1:
+                    qcd_values[neg_int_mask, :] = empty_bin_value
+                    qcd_variances[neg_int_mask, :] = 0.0
+                else:
+                    qcd_values[neg_int_mask] = empty_bin_value
+                    qcd_variances[neg_int_mask] = 0.0
             # residual zero filling
             if fill_empty_residual:
                 zero_mask = qcd_values <= 0
@@ -349,6 +375,7 @@ def add_hooks(analysis_inst: od.Analysis) -> None:
 
     # add different hook variations
     analysis_inst.x.hist_hooks.qcd = qcd_estimation
+    analysis_inst.x.hist_hooks.qcd_diff = functools.partial(qcd_estimation, differential_transfer_factor=True)
     analysis_inst.x.hist_hooks.qcd_zerofill = functools.partial(qcd_estimation, empty_bin_value=1e-5)
     analysis_inst.x.hist_hooks.qcd_from_ss_iso = functools.partial(qcd_estimation, shape_transfer="from_ss_iso")
     analysis_inst.x.hist_hooks.qcd_cutflow = functools.partial(qcd_estimation, second_axis_name="step")

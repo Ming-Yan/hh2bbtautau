@@ -113,7 +113,7 @@ def add_categories(config: od.Config) -> None:
         _add_category(
             name=f"dm{dm1}_dm{dm2}",
             selection=f"cat_tau_dm{dm1}_dm{dm2}",
-            label=f"{DM_LABELS[dm1]}-{DM_LABELS[dm2]}",
+            label=f"dm{dm1}_dm{dm2}",
         )
     # _add_category(name="cross_vbf",selection="cat_cross_vbf",label = "cross vbf", tags={"skip_cutflow"})
     # _add_category(name="cross_tautaujet",selection="cat_cross_tautaujet",label = "cross tautau jet", tags={"skip_cutflow"})

@@ -430,7 +430,9 @@ def tau_selection(
     if ak.all(ak.num(events.Tau) == 0):
         logger.info("no taus found in event chunk")
         false_mask = full_like(events.Tau.pt, False, dtype=bool)
-        return false_mask, false_mask, false_mask
+        tau_stages = {"base": false_mask, "id": false_mask, "trigger_offline": false_mask}
+
+        return false_mask, false_mask, false_mask, tau_stages
 
     is_single_e = trigger.has_tag("single_e")
     is_single_mu = trigger.has_tag("single_mu")

@@ -1453,5 +1453,8 @@
   "tautau__lep35__os__iso": 1458,
   "tautau__lep35__os__noniso": 1459,
   "tautau__lep35__ss__iso": 1460,
-  "tautau__lep35__ss__noniso": 1461
+  "tautau__lep35__ss__noniso": 1461,
+  "mixed": 1462,
+  "pnet": 1463,
+  "hps": 1464
 }
