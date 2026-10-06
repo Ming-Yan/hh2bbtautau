@@ -190,8 +190,8 @@ def add_config(
         "h",
         "hh_ggf_hbb_htt",
         "hh_vbf_hbb_htt",
-        # "hh_ggf_hbb_hvv",
-        # "hh_vbf_hbb_hvv",
+        "hh_ggf_hbb_hvv",
+        "hh_vbf_hbb_hvv",
     ]
     for process_name in process_names:
         if process_name in procs:
@@ -231,13 +231,13 @@ def add_config(
     dataset_names = [
         # hh ggf
         *law.util.flatten(
-            law.util.brace_expand(f"hh_ggf_hbb_h{{tt}}_kl{kl}_kt1_powheg")
+            law.util.brace_expand(f"hh_ggf_hbb_h{{tt,vv,vv2l2nu,vvqqlnu}}_kl{kl}_kt1_powheg")
             for kl, in cfg.x.hh_points.ggf
         ),
 
         # hh vbf
         *law.util.flatten(
-            law.util.brace_expand(f"hh_vbf_hbb_h{{tt}}_kv{kv}_k2v{k2v}_kl{kl}_madgraph")
+            law.util.brace_expand(f"hh_vbf_hbb_h{{tt,vv,vv2l2nu,vvqqlnu}}_kv{kv}_k2v{k2v}_kl{kl}_madgraph")
             for kv, k2v, kl in cfg.x.hh_points.vbf
         ),
 
@@ -293,7 +293,7 @@ def add_config(
             "dy_tautau_m50toinf_1j_filtered_amcatnlo",
             "dy_tautau_m50toinf_2j_filtered_amcatnlo",
         ]),
-        *if_era(year=[2024, 2025, 2026], values=[
+        *if_era(year=2024, values=[
             "dy_ee_m50toinf_amcatnlo",
             "dy_ee_m50toinf_0j_amcatnlo",
             "dy_ee_m50toinf_1j_amcatnlo",
@@ -307,7 +307,7 @@ def add_config(
             "dy_tautau_m50toinf_1j_amcatnlo",
             "dy_tautau_m50toinf_2j_amcatnlo",
             # TODO: 2024: additional tautau kin filtered samples not ready yet
-            # https://cms-pdmv-prod.web.cern.ch/grasp/samples?dataset_query=*DYto2Tau*&campaign=RunIII2024Summer24*GS # noqa: E501
+            # https://cms-pdmv-prod.web.cern.ch/grasp/samples?dataset_query=*DYto2Tau*Fil-Tau*&campaign=RunIII2024Summer24*GS # noqa: E501
         ]),
 
         # dy, powheg
@@ -413,22 +413,26 @@ def add_config(
         "tth_hbb_powheg",
         "tth_hnonbb_powheg",
 
-        # data
+        # data, 22pre
         *if_era(year=2022, tag="preEE", values=[
             f"data_{stream}_{period}" for stream in ["e", "mu", "tau"] for period in "cd"
         ]),
+        # data, 22post
         *if_era(year=2022, tag="postEE", values=[
             f"data_{stream}_{period}" for stream in ["e", "mu", "tau"] for period in "efg"
         ]),
+        # data, 23pre
         *if_era(year=2023, tag="preBPix", values=[
             f"data_{stream}_c{v}" for stream in ["e", "mu", "tau"] for v in "1234"
         ]),
         *if_era(year=2023, tag="preBPix", values=[
             f"data_{stream}_c{v}" for stream in ["parking_vbf"] for v in "34"
         ]),
+        # data, 23post
         *if_era(year=2023, tag="postBPix", values=[
             f"data_{stream}_d{v}" for stream in ["e", "mu", "tau", "parking_vbf"] for v in "12"
         ]),
+        # data, 24
         *if_era(year=2024, values=[
             f"data_{stream}_{period}" for stream in ["e", "mu", "tau", "parking_vbf", "parking_hh"] for period in "cdefghi"  # noqa: E501
         ]),
@@ -523,6 +527,9 @@ def add_config(
         if law.util.multi_match(dataset.name, [r"^(ww|wz|zz)_.*pythia$"]):
             dataset.add_tag("no_lhe_weights")
             dataset.remove_tag("partial_lhe_weights")
+        # datasets with single boson processes
+        if dataset.name.startswith(("dy_", "w_", "z_")):
+            dataset.add_tag("has_single_boson")
         # single higgs
         if dataset.name.startswith(("h_", "wph_", "wmh_", "zh_")):
             dataset.add_tag("has_higgs")
@@ -616,37 +623,50 @@ def add_config(
     # process groups for conveniently looping over certain processes
     # (used in wrapper_factory and during plotting)
     cfg.x.process_groups = {
-        "signals": [
+        "signals": (signals_sm := [
             "hh_ggf_hbb_htt_kl1_kt1",
             "hh_vbf_hbb_htt_kv1_k2v1_kl1",
-        ],
+        ]),
         "signals_ggf": [
             f"hh_ggf_hbb_htt_kl{kl}_kt1"
             for kl, in cfg.x.hh_points.ggf
         ],
-        # "signals_bbvv": [
-        #     "hh_ggf_hbb_hvv_kl1_kt1",
-        #     "hh_vbf_hbb_hvv_kv1_k2v1_kl1",
-        # ],
-        # "signals_bbvv_ggf": [
-        #     f"hh_ggf_hbb_hvv_kl{kl}_kt1"
-        #     for kl, in cfg.x.hh_points.ggf
-        # ],
+        "signals_bbvv": [
+            "hh_ggf_hbb_hvv_kl1_kt1",
+            "hh_vbf_hbb_hvv_kv1_k2v1_kl1",
+        ],
+        "signals_bbvv_ggf": [
+            f"hh_ggf_hbb_hvv_kl{kl}_kt1"
+            for kl, in cfg.x.hh_points.ggf
+        ],
         "backgrounds": (backgrounds := [
             "tt",
             "dy",
             "w_lnu",
             "st",
-            # "others"
+            "multiboson",
+            "ewk",
+            "h",
+            "qcd",
+        ]),
+        "backgrounds_dylep": (backgrounds_dylep := [
+            "tt",
+            "dy_ee",
+            "dy_mumu",
+            "dy_tautau",
+            "w_lnu",
+            "st",
             "multiboson",
             "ewk",
             "h",
             "qcd",
         ]),
         "sm_ggf": (sm_ggf_group := ["hh_ggf_hbb_htt_kl1_kt1", *backgrounds]),
-        "sm": (sm_group := ["hh_ggf_hbb_htt_kl1_kt1", "hh_vbf_hbb_htt_kv1_k2v1_kl1", *backgrounds]),
-        "sm_ggf_data": ["data"] + sm_ggf_group,
-        "sm_data": ["data"] + sm_group,
+        "sm_ggf_data": ["data", sm_ggf_group],
+        "sm": (sm_group := [*signals_sm, *backgrounds]),
+        "sm_data": ["data", *sm_group],
+        "sm_dylep": (sm_dylep_group := [*signals_sm, *backgrounds_dylep]),
+        "sm_dylep_data": ["data", *sm_dylep_group],
         "bkg_data": ["data"] + backgrounds,
     }
     cfg.x.default_process_group = "sm_data"
@@ -725,28 +745,29 @@ def add_config(
                         ],
                     },
                 }
-        # bbvv
-        # vv_decays = ["qqlnu", "2l2nu", "4q", "2q2nu", "4nu", "4l", "2l2q"]
-        # cfg.x.bbvv_stitching = {
-        #     f"ggf_kl{kl}": {
-        #         "inclusive_dataset": cfg.get_dataset(f"hh_ggf_hbb_hvv_kl{kl}_kt1_powheg"),
-        #         "leaf_processes": [
-        #             cfg.get_process(f"hh_ggf_hbb_hvv{vv}_kl{kl}_kt1")
-        #             for vv in vv_decays
-        #         ],
-        #     }
-        #     for kl, in cfg.x.hh_points.ggf
-        # } | {
-        #     f"vbf_kv{kv}_k2v{k2v}_kl{kl}": {
-        #         "inclusive_dataset": cfg.get_dataset(f"hh_vbf_hbb_hvv_kv{kv}_k2v{k2v}_kl{kl}_madgraph"),
-        #         "leaf_processes": [
-        #             cfg.get_process(f"hh_vbf_hbb_hvv{vv}_kv{kv}_k2v{k2v}_kl{kl}")
-        #             for vv in vv_decays
-        #         ],
-        #     }
-        #     for kv, k2v, kl in cfg.x.hh_points.vbf
 
-        # }
+        # bbvv
+        vv_decays = ["qqlnu", "2l2nu", "4q", "2q2nu", "4nu", "4l", "2l2q"]
+        cfg.x.bbvv_stitching = {
+            f"ggf_kl{kl}": {
+                "inclusive_dataset": cfg.get_dataset(f"hh_ggf_hbb_hvv_kl{kl}_kt1_powheg"),
+                "leaf_processes": [
+                    cfg.get_process(f"hh_ggf_hbb_hvv{vv}_kl{kl}_kt1")
+                    for vv in vv_decays
+                ],
+            }
+            for kl, in cfg.x.hh_points.ggf
+        } | {
+            f"vbf_kv{kv}_k2v{k2v}_kl{kl}": {
+                "inclusive_dataset": cfg.get_dataset(f"hh_vbf_hbb_hvv_kv{kv}_k2v{k2v}_kl{kl}_madgraph"),
+                "leaf_processes": [
+                    cfg.get_process(f"hh_vbf_hbb_hvv{vv}_kv{kv}_k2v{k2v}_kl{kl}")
+                    for vv in vv_decays
+                ],
+            }
+            for kv, k2v, kl in cfg.x.hh_points.vbf
+
+        }
 
     # dataset groups for conveniently looping over certain datasets
     # (used in wrapper_factory and during plotting)
@@ -840,7 +861,7 @@ def add_config(
         "no_jet": ["bad", "mc_filter", "json", "trigger", "met_filter", "jet_veto_map", "lepton"],
     }
     cfg.x.default_selector_steps = "all"
-    cfg.x.dataset="hh_ggf_hbb_htt_kl1_kt1_powheg"
+    # cfg.x.dataset="hh_ggf_hbb_htt_kl1_kt1_powheg"
     # plotting overwrites
     from hbt.config.styles import setup_plot_styles
     setup_plot_styles(cfg)
@@ -1661,7 +1682,7 @@ def add_config(
 
     # dy specific methods
     if run == 3:
-        from columnflow.production.cms.dy import DrellYanConfig
+        from columnflow.production.cms.dy import DrellYanWeightConfig, RecoilConfig
         dy_era = f"{year}"
         if year == 2022:
             dy_era += "preEE" if campaign.has_tag("preEE") else "postEE"
@@ -1670,7 +1691,7 @@ def add_config(
 
         # dy reweighting with custom weights
         # (originally by hleprare group, https://cms-higgs-leprare.docs.cern.ch/htt-common/DY_reweight)
-        cfg.x.dy_weight_config = DrellYanConfig(
+        cfg.x.dy_weight_config = DrellYanWeightConfig(
             era=dy_era,
             correction="dy_weight",
             systs=[
@@ -1689,7 +1710,7 @@ def add_config(
 
         # dy boson recoil correction
         # https://cms-higgs-leprare.docs.cern.ch/htt-common/V_recoil
-        cfg.x.dy_recoil_config = DrellYanConfig(
+        cfg.x.dy_recoil_config = RecoilConfig(
             era=dy_era,
             order="NLO",
             correction="Recoil_correction_Rescaling",
@@ -2033,11 +2054,11 @@ def add_config(
             2016: ("/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions16/13TeV/Legacy_2016/Cert_271036-284044_13TeV_Legacy2016_Collisions16_JSON.txt", "v1"),  # noqa: E501
             2017: ("/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions17/13TeV/Legacy_2017/Cert_294927-306462_13TeV_UL2017_Collisions17_GoldenJSON.txt", "v1"),  # noqa: E501
             2018: ("/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions18/13TeV/Legacy_2018/Cert_314472-325175_13TeV_Legacy2018_Collisions18_JSON.txt", "v1"),  # noqa: E501
-            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=194#Year_2022
+            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=223#Year_2022
             2022: (cat_info.get_file("dc", "Cert_Collisions2022_355100_362760_Golden.json"), "v1"),
-            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=194#Year_2023
+            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=223#Year_2023
             2023: (cat_info.get_file("dc", "Cert_Collisions2023_366442_370790_Golden.json"), "v1"),
-            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=194#Year_2024
+            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=223#Year_2024
             2024: (cat_info.get_file("dc", "Cert_Collisions2024_378981_386951_Golden.json"), "v1"),
             #https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=222#Year_2025
             2025:(cat_info.get_file("dc", "Cert_Collisions2025_391658_398903_Golden.json"), "v1"),
@@ -2046,11 +2067,11 @@ def add_config(
             2016: ("/afs/cern.ch/user/l/lumipro/public/Normtags/normtag_PHYSICS.json", "v1"),
             2017: ("/afs/cern.ch/user/l/lumipro/public/Normtags/normtag_PHYSICS.json", "v1"),
             2018: ("/afs/cern.ch/user/l/lumipro/public/Normtags/normtag_PHYSICS.json", "v1"),
-            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=194#Year_2022
+            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=223#Year_2022
             2022: ("/cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json", "v1"),
-            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=194#Year_2023
+            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=223#Year_2023
             2023: ("/cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json", "v1"),
-            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=194#Year_2024
+            # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis?rev=223#Year_2024
             2024: ("/cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json", "v1"),
             2025: ("/cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json", "v1"),
         }[year],
@@ -2084,13 +2105,8 @@ def add_config(
     # dnn models trained with run 2 legacy setup but run 3 data
     for fold in range(5):
         # for 2024, use version with btag for now, but we could also drop it since we have no full shape correction
-        # basename = f"model_2024_v2_fold{fold}_btag_moe.tgz" if year == 2024 else f"model_fold{fold}_moe.tgz"
         basename = f"model_2024_v2_tauid_fold{fold}_btag_moe.tgz"  if year == 2024 else f"model_fold{fold}_moe.tgz"
         add_external(f"run3_dnn_fold{fold}_moe", (f"{central_hbt_dir}/run3_models/run3_dnn/{basename}", "v1"))
-    # and again with different kl setups (disabled since they were still run with the broken dy frequencies)
-    # add_external("run3_dnn_simple_kl1", (f"{central_hbt_dir}/run3_models/run3_dnn_simple_kl1/model_fold0_seed1.tgz", "v1"))  # noqa: E501
-    # add_external("run3_dnn_simple_kl0", (f"{central_hbt_dir}/run3_models/run3_dnn_simple_kl0/model_fold0_seed1.tgz", "v1"))  # noqa: E501
-    # add_external("run3_dnn_simple_allkl", (f"{central_hbt_dir}/run3_models/run3_dnn_simple_allkl/model_fold0_seed1.tgz", "v1"))  # noqa: E501
     # pytorch models
     add_external("torch_test_dnn", (f"{central_hbt_dir}/run3_models/run3_torch_test/run3_external_dnn.pt2", "v1"))
     add_external("torch_simple_kl01", (f"{central_hbt_dir}/run3_models/run3_torch_simple_kl01/comparison_dnn.pt2", "v3"))  # noqa: E501
@@ -2174,7 +2190,10 @@ def add_config(
             version="v1",
         ))
         add_external("tau_sf", (cat_info.get_file("tau", "tau.json.gz"), "v1"))
-        # dy weight and recoil corrections
+        # dy weight
+        dy_weight_version = 5
+        add_external("dy_weight_sf", (f"{central_hbt_dir}/custom_dy_files/hbt_corrections_v{dy_weight_version}.json.gz", "v2"))  # noqa: E501
+        # bosonic recoil corrections
         # https://cms-higgs-leprare.docs.cern.ch/htt-common/V_recoil
         # test: reprocessed version for 23post only
         if year == 2023 and campaign.x.postfix == "BPix":
@@ -2307,12 +2326,13 @@ def add_config(
             "Electron.*", *skip_column("Electron.{track_cov,gsf}*"),
             "Muon.*", skip_column("Muon.track_cov*"),
             "Tau.*", skip_column("Tau.track_cov*"),
-            f"{cfg.x.met_name}.{{pt,phi,significance,covXX,covXY,covYY}}",
+            f"{cfg.x.met_name}.{{pt,phi,ptUnclustered*,phiUnclustered*,significance,covXX,covXY,covYY}}",
             # variations created during met phi calibration and that are not registered shifts to the selector
             f"{cfg.x.met_name}.{{pt,phi}}_{{unsmeared,metphi_*,minbias_xs_*}}",
             "PV.npvs",
             # keep all columns added during selection and reduction, but skip cutflow features
             ColumnCollection.ALL_FROM_SELECTOR,
+            ColumnCollection.ALL_FROM_REDUCER,
             skip_column("cutflow.*"),
         },
         "cf.MergeSelectionMasks": {
@@ -2531,8 +2551,8 @@ def add_config(
                 for lfn_num_base in lfn_num_bases
             ), [])
 
-            if (skip_lfns := dataset_inst.get_info(shift_inst.name).x("skip_lfns", [])):
-                lfns = set(lfns) - set(skip_lfns)
+            if (broken_files := dataset_inst.get_info(shift_inst.name).x("broken_files", [])):
+                lfns = set(lfns) - set(broken_files)
 
             return sorted(lfns)
 

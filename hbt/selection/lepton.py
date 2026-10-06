@@ -1627,7 +1627,7 @@ def lepton_selection(
 
     return events, SelectionResult(
         steps={
-            # **steps_lep.masks,
+            **steps_lep.masks,
             "lepton": channel_id != 0,
         },
         objects={

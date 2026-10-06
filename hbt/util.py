@@ -130,6 +130,7 @@ def IF_RUN_3_2023_2024(self, func: ArrayFunction) -> bool:
 IF_DATASET_HAS_LHE_WEIGHTS = IF_DATASET_HAS_TAG("no_lhe_weights", negate=True)
 IF_DATASET_HAS_TOP = IF_DATASET_HAS_TAG("has_top")
 IF_DATASET_HAS_HIGGS = IF_DATASET_HAS_TAG("has_higgs")
+IF_DATASET_HAS_SINGLE_BOSON = IF_DATASET_HAS_TAG("has_single_boson")
 IF_DATASET_IS_BBTT = IF_DATASET_HAS_TAG("bbtt")
 IF_DATASET_IS_BBVV = IF_DATASET_HAS_TAG("bbvv")
 IF_DATASET_IS_TT = IF_DATASET_HAS_TAG("ttbar")
@@ -298,6 +299,18 @@ def rotate_px_py(
 def delta_r12(vectors: ak.Array) -> ak.Array:
     # delta r between first two elements
     dr = ak.firsts(vectors[:, :1], axis=1).delta_r(ak.firsts(vectors[:, 1:2], axis=1))
+    return ak.fill_none(dr, EMPTY_FLOAT)
+
+
+def delta_eta12(vectors: ak.Array) -> ak.Array:
+    # delta eta between first two elements
+    dr = abs(ak.firsts(vectors[:, :1], axis=1).eta - ak.firsts(vectors[:, 1:2], axis=1).eta)
+    return ak.fill_none(dr, EMPTY_FLOAT)
+
+
+def delta_phi12(vectors: ak.Array) -> ak.Array:
+    # delta phi between first two elements
+    dr = abs(ak.firsts(vectors[:, :1], axis=1).delta_phi(ak.firsts(vectors[:, 1:2], axis=1)))
     return ak.fill_none(dr, EMPTY_FLOAT)
 
 
