@@ -89,34 +89,12 @@ def add_categories(config: od.Config) -> None:
     _add_category(name="res1b_inclvbf_cc", selection="cat_res1b_inclvbf_cc", label="Resolved, ggF, 1 b-tag", tags={"skip_cutflow"})  # noqa: E501
     _add_category(name="res2b_inclvbf_cc", selection="cat_res2b_inclvbf_cc", label=r"Resolved, ggF, $\geq$2 b-tags", tags={"skip_cutflow"})  # noqa: E501
     ### fix_pnet
-    _add_category(name="res1b_invH_cc", selection="cat_invHres1b_cc", label="Resolved, ggF,inv $m_H$, 1 b-tag", tags={"skip_cutflow"})
-    _add_category(name="res2b_invH_cc", selection="cat_invHres2b_cc", label=r"Resolved, ggF, inv $m_H$,$\geq$2 b-tags", tags={"skip_cutflow"})  # noqa: E501
-    _add_category(name="invH2b",selection="cat_invH_2b", label="~ $m_{\tau\tau}$+$m_{bb}$ mass, 2b ")
-    _add_category(name="invH1b",selection="cat_invH_1b", label="~ $m_{\tau\tau}$+$m_{bb}$ mass, 1b")
-    _add_category(name="invb1b",selection="cat_invb_1b", label="~$m_{bb}$  mass, 1b ")
-    _add_category(name="invt1b",selection="cat_invtau_1b", label="~$m_{\\tau\\tau}$ mass, 1b")
-    _add_category(name="mll501b",selection="cat_mll50_1b", label="$m_{\\tau\\tau}$>50, 1b")
-    _add_category(name="2b",selection="cat_2b", label="2b ")
-    _add_category(name="1b",selection="cat_1b", label="1b")
-    _add_category(name="mixed",selection="cat_dmorigin_mixed", label="PNet recovered 1 taus")
-    _add_category(name="pnet",selection="cat_dmorigin_pnet", label="PNet recovered 2 taus")
-    _add_category(name="hps",selection="cat_dmorigin_orig", label="HPS taus")
-    # _add_category(name="lep35",selection="cat_dilep35", label="lep pT>35 GeV")
-    ## test
-    DM_PAIRS = [
-    (0, 0), (0, 1), (0, 10), (0, 11),
-    (1, 1), (1, 10), (1, 11),
-    (10, 10), (10, 11),
-    (11, 11),
-    ]
-    DM_LABELS = {0: "1h", 1: "1h1$\\pi_0$", 10: "3h", 11: "3h1$\\pi_0$"}
 
-    for i, (dm1, dm2) in enumerate(DM_PAIRS):
-        _add_category(
-            name=f"dm{dm1}_dm{dm2}",
-            selection=f"cat_tau_dm{dm1}_dm{dm2}",
-            label=f"dm{dm1}_dm{dm2}",
-        )
+    # _add_category(name="mixed",selection="cat_dmorigin_mixed", label="PNet recovered 1 taus")
+    # _add_category(name="pnet",selection="cat_dmorigin_pnet", label="PNet recovered 2 taus")
+    # _add_category(name="hps",selection="cat_dmorigin_orig", label="HPS taus")
+    ## test
+   
     # _add_category(name="cross_vbf",selection="cat_cross_vbf",label = "cross vbf", tags={"skip_cutflow"})
     # _add_category(name="cross_tautaujet",selection="cat_cross_tautaujet",label = "cross tautau jet", tags={"skip_cutflow"})
     # _add_category(name="cross_tautau",selection="cat_cross_tautau",label = "cross tautau", tags={"skip_cutflow"})
@@ -150,7 +128,6 @@ def add_categories(config: od.Config) -> None:
                 if cat.label and cat.name != "os" and cat.name != "iso"  # os and iso are the defaults
             ]) or None,
         }
-    dm= [f"dm{dm1}_dm{dm2}" for dm1, dm2 in DM_PAIRS]
     
     # main analysis categories
     main_categories = {
@@ -165,7 +142,7 @@ def add_categories(config: od.Config) -> None:
                      "incl", "res1b", "res2b", "boosted",
                     "res1b_cc", "res2b_cc", "vbf_cc", "boosted_cc",
                     "eq2j", "eq3j", "eq4j", "eq5j", "ge2j", "ge3j", "ge4j",
-                    "mixed","pnet","hps"
+                    # "mixed","pnet","hps"
                 # *dm,"lep35"
             #    "cross_tautau","cross_tautaujet","cross_vbf" #
             ],
@@ -195,17 +172,7 @@ def add_categories(config: od.Config) -> None:
         skip_existing=False,
         skip_fn=skip_fn,
     )
-       # _add_category(
-    #     name="mutau__incl",
-    #     label= r"$\mu\tau$, inclusive (no iso,charge selection)",
-    #     categories=[
-    #         config.get_category("mutau__incl__os__iso"),
-    #         config.get_category("mutau__incl__os__noniso"),
-    #         config.get_category("mutau__incl__ss__iso"),
-    #         config.get_category("mutau__incl__ss__noniso"),
-    #     ],
-    # ))
-
+ 
 
 
     # control categories
@@ -243,45 +210,5 @@ def add_categories(config: od.Config) -> None:
         skip_fn=skip_fn_ctrl,
     )
 
-    # additional combined categories
-    # _add_category(
-    #     name="etau__incl",
-    #     label= r"e$\tau$, inclusive (no iso,charge selection)",
-    #     categories=[
-    #         config.get_category("etau__incl__os__iso"),
-    #         config.get_category("etau__incl__os__noniso"),
-    #         config.get_category("etau__incl__ss__iso"),
-    #         config.get_category("etau__incl__ss__noniso"),
-    #     ],
-    # )
-    # _add_category(
-    #     name="mutau__incl",
-    #     label= r"$\mu\tau$, inclusive (no iso,charge selection)",
-    #     categories=[
-    #         config.get_category("mutau__incl__os__iso"),
-    #         config.get_category("mutau__incl__os__noniso"),
-    #         config.get_category("mutau__incl__ss__iso"),
-    #         config.get_category("mutau__incl__ss__noniso"),
-    #     ],
-    # )
-    # _add_category(
-    #     name="tautau__incl",
-    #     label= r"$\tau\tau$, inclusive (no iso,charge selection)",
-    #     categories=[
-    #         config.get_category("tautau__incl__os__iso"),
-    #         config.get_category("tautau__incl__os__noniso"),
-    #         config.get_category("tautau__incl__ss__iso"),
-    #         config.get_category("tautau__incl__ss__noniso"),
-    #     ],
-    # )
-    # _add_category(
-    #     name="incl__os__iso",
-    #     label=r"$e\tau/\mu\tau/\tau\tau$, inclusive",
-    #     categories=[
-    #         config.get_category("etau__incl__os__iso"),
-    #         config.get_category("mutau__incl__os__iso"),
-    #         config.get_category("tautau__incl__os__iso"),
-    #     ],
-    # )
 
     id_cache.close()

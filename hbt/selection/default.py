@@ -35,12 +35,14 @@ from columnflow.types import TYPE_CHECKING
 from hbt.selection.trigger import trigger_selection
 from hbt.selection.lepton import lepton_selection
 from hbt.selection.jet import jet_selection
+from hbt.selection.tau_eff import gen_tau_eff
 import hbt.production.processes as process_producers
 from hbt.production.weights import btag_weights_deepjet, btag_weights_pnet
 from hbt.production.features import cutflow_features
 from hbt.production.patches import patch_ecalBadCalibFilter
 from hbt.util import (
     IF_DATASET_HAS_LHE_WEIGHTS, IF_RUN_3, IF_RUN_3_2022_2023, IF_RUN_3_2024, IF_DATA, IF_DATASET_HAS_TAG,
+    IF_DATASET_HAS_HIGGS,
 )
 
 np = maybe_import("numpy")
@@ -96,11 +98,13 @@ def dy_drop_tautau_setup(self: Selector, task: law.Task, **kwargs) -> None:
         cutflow_features, attach_coffea_behavior, IF_DATA(patch_ecalBadCalibFilter),
         IF_DATASET_HAS_LHE_WEIGHTS(pdf_weights, pdf_weights_raw, murmuf_weights, murmuf_weights_raw),
         IF_DATASET_HAS_TAG("dy_drop_tautau")(dy_drop_tautau), IF_RUN_3_2024(fill_btag_wp_count_hists),
+        IF_DATASET_HAS_HIGGS(gen_tau_eff),
     },
     produces={
         jet_id, fatjet_id, trigger_selection, lepton_selection, jet_selection, mc_weight, pu_weight, ps_weights,
         process_ids, cutflow_features, IF_RUN_3_2022_2023(btag_weights_pnet),
         IF_DATASET_HAS_LHE_WEIGHTS(pdf_weights, pdf_weights_raw, murmuf_weights, murmuf_weights_raw),
+        IF_DATASET_HAS_HIGGS(gen_tau_eff),
     },
     exposed=True,
 )
@@ -229,6 +233,18 @@ def default(
     # combined event selection after all steps
     event_sel = reduce(and_, results.steps.values())
     results.event = event_sel
+
+    # gen-anchored tau efficiency per selection step (stored for all events)
+    if self.has_dep(gen_tau_eff):
+        events = self[gen_tau_eff](
+            events,
+            tau_eff_masks=results.x.tau_eff_masks,
+            tau_eff_trig=results.x.tau_eff_trig,
+            sel_tau_indices=results.objects.Tau.Tau,
+            lepton_sel=results.steps.lepton,
+            event_sel=event_sel,
+            **kwargs,
+        )
 
     # fill btagging efficiency histograms (in-place, so no return value)
     # ! note that this uses selected jets only of selected events with the full "event_sel", so selecting a subset

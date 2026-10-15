@@ -116,6 +116,78 @@ def update_channel_ids(
     return ak.where(channel_mask, correct_channel_id, previous_channel_ids)
 
 
+# ordered, cumulative tau-level steps used to study the efficiency of (true) taus per selection step
+TAU_EFF_STEPS = ("acc", "id", "ch_id", "top_iso", "trig_fired", "trig_offline", "trig_matched")
+TAU_EFF_CHANNELS = ("etau", "mutau", "tautau")
+# trigger kinds (each hbt trigger carries exactly one of these tags) for per-trigger tau efficiencies
+TAU_EFF_TRIGGER_KINDS = (
+    "single_e", "single_mu", "cross_e_tau", "cross_mu_tau", "cross_tau_tau", "cross_tau_tau_jet",
+    "cross_tau_tau_vbf", "cross_tau_vbf", "cross_quadjet", "cross_e_vbf", "cross_mu_vbf", "cross_vbf",
+)
+
+
+def trigger_kind(trigger: Trigger) -> str | None:
+    for kind in TAU_EFF_TRIGGER_KINDS:
+        if trigger.has_tag(kind):
+            return kind
+    return None
+
+
+def accumulate_tau_eff(
+    acc_masks: dict[str, ak.Array],
+    trig_counts: dict[str, ak.Array],
+    *,
+    kind: str | None,
+    tau_stages: dict[str, ak.Array],
+    ch_base_tau_mask: ak.Array,
+    tau_trigger_specific_mask: ak.Array,
+    trig_tau_mask: ak.Array,
+    tau_sorting_indices: ak.Array,
+    n_lead: int,
+    trigger_fired: ak.Array,
+    layout: ak.Array,
+) -> dict[str, ak.Array]:
+    """
+    Per-tau, cumulative step masks for one trigger in one channel, ORed into *acc_masks*. In addition, the number
+    of consecutive steps passed by each tau (0 to len(TAU_EFF_STEPS)) is stored per trigger *kind* in
+    *trig_counts* (maximum over all triggers of that kind), so that step i is passed for that kind if count > i.
+
+    acc          : |eta| and pt base cuts
+    id           : + dz and PNet vsJet >= VVVLoose
+    ch_id        : + channel dependent vsE / vsMu and dR > 0.5 to selected e/mu
+    top_iso      : + among the *n_lead* most isolated ch_id taus (1 for e/mutau, 2 for tautau),
+                   i.e. the true tau was not out-ranked by a fake one
+    trig_fired   : + the trigger fired (event level)
+    trig_offline : + trigger dependent offline pt cut
+    trig_matched : + trigger object matching (if the trigger requires it)
+    """
+    top_iso = mask_from_indices(
+        tau_sorting_indices[ch_base_tau_mask[tau_sorting_indices]][:, :n_lead],
+        layout,
+    )
+    chain = {
+        "acc": tau_stages["base"],
+        "id": tau_stages["id"],
+        "ch_id": ch_base_tau_mask,
+        "top_iso": top_iso,
+        "trig_fired": trigger_fired,
+        "trig_offline": tau_trigger_specific_mask,
+        "trig_matched": trig_tau_mask,
+    }
+    cum = None
+    n_passed = full_like(layout, 0, dtype=np.int8)
+    for step in TAU_EFF_STEPS:
+        mask = ak.fill_none(chain[step], False)
+        # event-level masks (trig_fired) broadcast onto the tau dimension
+        cum = mask if cum is None else (cum & mask)
+        acc_masks[step] = acc_masks[step] | cum
+        n_passed = n_passed + ak.values_astype(cum, np.int8)
+    if kind is not None:
+        prev = trig_counts.get(kind)
+        trig_counts[kind] = n_passed if prev is None else ak.where(n_passed > prev, n_passed, prev)
+    return acc_masks
+
+
 @selector(
     uses={
         "Electron.{pt,eta,phi,dxy,dz,pfRelIso03_all,seediEtaOriX,seediPhiOriY,deltaEtaSC}",
@@ -839,6 +911,14 @@ def lepton_selection(
     false_mask,
 )
       
+    # per-tau step masks per channel for tau efficiency studies (mc only, see accumulate_tau_eff)
+    tau_eff_masks = {
+        ch: {step: full_like(events.Tau.pt, False, dtype=bool) for step in TAU_EFF_STEPS}
+        for ch in TAU_EFF_CHANNELS
+    } if self.dataset_inst.is_mc else {}
+    # per channel and trigger kind: number of consecutive tau steps passed (filled lazily)
+    tau_eff_trig = {ch: {} for ch in TAU_EFF_CHANNELS}
+
     def update_passed_selection_dict(
         selection_dict: dict[str, ak.Array],
         tau_trigger_mask: ak.Array,
@@ -1046,6 +1126,20 @@ def lepton_selection(
                 ),
                 # "lepton": is_etau,
             })
+            if tau_eff_masks:
+                accumulate_tau_eff(
+                    tau_eff_masks["etau"],
+                    tau_eff_trig["etau"],
+                    kind=trigger_kind(trigger),
+                    tau_stages=tau_stages,
+                    ch_base_tau_mask=ch_base_tau_mask,
+                    tau_trigger_specific_mask=tau_trigger_specific_mask,
+                    trig_tau_mask=trig_tau_mask,
+                    tau_sorting_indices=tau_sorting_indices,
+                    n_lead=1,
+                    trigger_fired=trigger_fired,
+                    layout=events.Tau.pt,
+                )
             
             if trigger.has_tag({"cross_e_vbf", "cross_vbf"}):
                 lepton_part_trigger_ids.append(ids)
@@ -1197,6 +1291,20 @@ def lepton_selection(
                 ),
                 # "lepton": is_mutau,
             })
+            if tau_eff_masks:
+                accumulate_tau_eff(
+                    tau_eff_masks["mutau"],
+                    tau_eff_trig["mutau"],
+                    kind=trigger_kind(trigger),
+                    tau_stages=tau_stages,
+                    ch_base_tau_mask=ch_base_tau_mask,
+                    tau_trigger_specific_mask=tau_trigger_specific_mask,
+                    trig_tau_mask=trig_tau_mask,
+                    tau_sorting_indices=tau_sorting_indices,
+                    n_lead=1,
+                    trigger_fired=trigger_fired,
+                    layout=events.Tau.pt,
+                )
         # tautau channel
         if (
             trigger.has_tag({
@@ -1361,6 +1469,20 @@ def lepton_selection(
                 ),
                 # "lepton": is_tautau,
             })
+            if tau_eff_masks:
+                accumulate_tau_eff(
+                    tau_eff_masks["tautau"],
+                    tau_eff_trig["tautau"],
+                    kind=trigger_kind(trigger),
+                    tau_stages=tau_stages,
+                    ch_base_tau_mask=ch_base_tau_mask,
+                    tau_trigger_specific_mask=tau_trigger_specific_mask,
+                    trig_tau_mask=trig_tau_mask,
+                    tau_sorting_indices=tau_sorting_indices,
+                    n_lead=2,
+                    trigger_fired=trigger_fired,
+                    layout=events.Tau.pt,
+                )
         # ee channel
         if trigger.has_tag("single_e") and (
             self.dataset_inst.is_mc or
@@ -1678,6 +1800,10 @@ def lepton_selection(
             # save the trigger objects indices matched to the taus for the quadjet triggers
             # for the duration of the selection
             "tau_trig_objects_idx_matched_quadjet": tau_trig_objects_matched_quadjet,
+
+            # per-tau, per-channel cumulative step masks for tau efficiency studies (mc only)
+            "tau_eff_masks": tau_eff_masks,
+            "tau_eff_trig": tau_eff_trig,
         },
     )
 
