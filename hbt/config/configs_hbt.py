@@ -413,6 +413,18 @@ def add_config(
         "tth_hbb_powheg",
         "tth_hnonbb_powheg",
 
+        #qcd 
+        # "qcd_ht40to70_madgraph",
+        # "qcd_ht70to100_madgraph",
+        # "qcd_ht100to200_madgraph",
+        # "qcd_ht200to400_madgraph",
+        # "qcd_ht400to600_madgraph",
+        # "qcd_ht600to800_madgraph",
+        # "qcd_ht800to1000_madgraph",
+        # "qcd_ht1000to1200_madgraph",
+        # "qcd_ht1200to1500_madgraph",
+        # "qcd_ht1500to2000_madgraph",
+        # "qcd_ht2000toinf_madgraph",
         # data, 22pre
         *if_era(year=2022, tag="preEE", values=[
             f"data_{stream}_{period}" for stream in ["e", "mu", "tau"] for period in "cd"
@@ -577,8 +589,8 @@ def add_config(
             cfg.x.btag_wp_eff_groups = [
                 ["hh_*", "tt_*", "st_*", "ttw_*", "ttz_*", "ttww_*", "ttwz_*", "ttzz_*"],
                 ["dy_*"],
-                ["w_*", "z_*", "zz_*", "wz_*", "ww_*", "www_*", "wwz_*", "wzz_*", "zzz_*"],
-                ["h_*", "wmh_*", "wph_*", "zh_*", "tth_*"],
+                ["w_*", "z_*", "zz_*", "wz_*", "ww_*", "www_*", "wwz_*", "wzz_*", "zzz_*","h_*", "wmh_*", "wph_*", "zh_*", "tth_*"],
+                # ["h_*", "wmh_*", "wph_*", "zh_*", "tth_*"],
             ]
             group_matched = False
             for i, dataset_pattern in enumerate(cfg.x.btag_wp_eff_groups):
@@ -2105,7 +2117,7 @@ def add_config(
     # dnn models trained with run 2 legacy setup but run 3 data
     for fold in range(5):
         # for 2024, use version with btag for now, but we could also drop it since we have no full shape correction
-        basename = f"model_2024_v2_tauid_fold{fold}_btag_moe.tgz"  if year == 2024 else f"model_fold{fold}_moe.tgz"
+        basename = f"model_2024_btag_pnet_v3_fold{fold}_moe.tgz"  if year == 2024 else f"model_fold{fold}_moe.tgz"
         add_external(f"run3_dnn_fold{fold}_moe", (f"{central_hbt_dir}/run3_models/run3_dnn/{basename}", "v1"))
     # pytorch models
     add_external("torch_test_dnn", (f"{central_hbt_dir}/run3_models/run3_torch_test/run3_external_dnn.pt2", "v1"))

@@ -473,3 +473,18 @@ def cat_tt(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.
 def cat_tt_init(self: Categorizer, **kwargs) -> None:
     super(cat_tt, self).init_func(**kwargs)
     self.uses.add(f"{self.config_inst.x.met_name}.{{pt,phi}}")
+
+@categorizer(uses={"Tau.genPartFlav"}, genflav=None)
+def cat_lead_tau_genflav(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    # genPartFlav of the leading tau in the event; None if the event has no tau
+    flav = ak.firsts(events.Tau.genPartFlav, axis=1)
+    if "genPartFlav" not in events.Tau.fields:
+        return events, full_like(events.event, 0, dtype=bool)
+    return events, ak.fill_none(flav == self.genflav, False)
+
+cat_genflav0 = cat_lead_tau_genflav.derive("cat_genflav0", cls_dict={"genflav": 0})  # unmatched / jet fake
+cat_genflav1 = cat_lead_tau_genflav.derive("cat_genflav1", cls_dict={"genflav": 1})  # prompt e
+cat_genflav2 = cat_lead_tau_genflav.derive("cat_genflav2", cls_dict={"genflav": 2})  # prompt μ
+cat_genflav3 = cat_lead_tau_genflav.derive("cat_genflav3", cls_dict={"genflav": 3})  # τ → e
+cat_genflav4 = cat_lead_tau_genflav.derive("cat_genflav4", cls_dict={"genflav": 4})  # τ → μ
+cat_genflav5 = cat_lead_tau_genflav.derive("cat_genflav5", cls_dict={"genflav": 5})  # genuine τ_h

@@ -88,7 +88,22 @@ def add_categories(config: od.Config) -> None:
     _add_category(name="boosted_cc", selection="cat_boosted_cc", label="Boosted", tags={"skip_cutflow"})
     _add_category(name="res1b_inclvbf_cc", selection="cat_res1b_inclvbf_cc", label="Resolved, ggF, 1 b-tag", tags={"skip_cutflow"})  # noqa: E501
     _add_category(name="res2b_inclvbf_cc", selection="cat_res2b_inclvbf_cc", label=r"Resolved, ggF, $\geq$2 b-tags", tags={"skip_cutflow"})  # noqa: E501
-    ### fix_pnet
+    # tau gen-level flavour (MC only), based on the leading tau's genPartFlav
+    genflav_labels = {
+        0: "unmatched (jet fake)",
+        1: "prompt e",
+        2: r"prompt $\mu$",
+        3: r"$\tau \to e$",
+        4: r"$\tau \to \mu$",
+        5: r"genuine $\tau_h$",
+    }
+    for flav, label in genflav_labels.items():
+        _add_category(
+            name=f"genflav{flav}",
+            selection=f"cat_genflav{flav}",
+            label=label,
+            tags={"skip_cutflow"},
+        )
 
     # _add_category(name="mixed",selection="cat_dmorigin_mixed", label="PNet recovered 1 taus")
     # _add_category(name="pnet",selection="cat_dmorigin_pnet", label="PNet recovered 2 taus")
@@ -151,6 +166,11 @@ def add_categories(config: od.Config) -> None:
         ),
         # btag groups
         "btags": CategoryGroup(["eq0b", "eq1b", "eq2b", "ge3b"], is_complete=True, has_overlap=False),
+        # "genflav": CategoryGroup(
+        #     [f"genflav{flav}" for flav in genflav_labels],
+        #     is_complete=False,
+        #     has_overlap=False,
+        # ),
         # qcd regions last
         "sign": CategoryGroup(["os", "ss"], is_complete=True, has_overlap=False),
         "tau2": CategoryGroup(["iso", "noniso"], is_complete=True, has_overlap=False),

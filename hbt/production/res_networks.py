@@ -396,8 +396,8 @@ class _res_dnn_evaluation(Producer):
         cat.vis_tau2_charge = np.asarray(events.feat_vis_tau[:, 1].charge, dtype=np.int32)
 
         # whether the events is resolved, boosted or neither
-        cat.has_jet_pair = np.asarray(ak.num(events.HHBJet) >= 2, dtype=np.int32)
-        cat.has_fatjet = np.asarray(ak.num(events.FatJet) >= 1, dtype=np.int32)
+        cat.has_jet_pair = np.asarray(ak.num(events.HHBJet) >= 2, dtype=bool)
+        cat.has_fatjet = np.asarray(ak.num(events.FatJet) >= 1, dtype=bool)
 
     def define_continuous_inputs(self, events: ak.Array, cont: DotDict, cat: DotDict) -> None:
         rot = functools.partial(rotate_px_py, ref_phi=-events.feat_dilep_phi)

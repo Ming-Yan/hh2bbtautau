@@ -6,11 +6,12 @@ import law
 import order as od
 
 from columnflow.plotting import supports_multi_variable, supports_multi_category, supports_multi_version
+
 from columnflow.plotting.plot_all import plot_all
 from columnflow.plotting.plot_util import prepare_style_config, remove_residual_axis, use_flow_bins
 from columnflow.util import maybe_import
 from columnflow.types import TYPE_CHECKING, Any
-
+from columnflow.plotting.plot_functions_1d import plot_variable_stack
 if TYPE_CHECKING:
     hist = maybe_import("hist")
     plt = maybe_import("matplotlib.pyplot")
@@ -259,3 +260,65 @@ def move_flow(h: hist.Hist, variable_inst: od.Variable) -> hist.Hist:
     if overflow or underflow:
         h = use_flow_bins(h, variable_inst.name, underflow=underflow, overflow=overflow)
     return h
+
+# genPartFlav value -> (legend label, colour)
+GENFLAV_STYLE = {
+    5: (r"genuine $\tau_h$", "#3f90da"),
+    1: ("prompt e", "#ffa90e"),
+    2: (r"prompt $\mu$", "#bd1f01"),
+    3: (r"$\tau \to e$", "#94a4a2"),
+    4: (r"$\tau \to \mu$", "#832db6"),
+    0: ("unmatched (jet fake)", "#a96b59"),
+}
+
+
+@supports_multi_category
+def multi_cat_genflav_stack(
+    hists: dict[str, dict[od.Process, hist.Hist]],
+    config_inst: od.Config,
+    category_inst: list[od.Category],
+    variable_insts: list[od.Variable],
+    shift_insts: list[od.Shift],
+    **kwargs,
+):
+    # same preparation as multi_cat_plot
+    hists = {cat_name: remove_residual_axis(proc_hists, "shift") for cat_name, proc_hists in hists.items()}
+    cats = {cat.name: cat for cat in law.util.make_list(category_inst)}
+    variable_inst = variable_insts[0]
+
+    # the parent region (no genflav suffix) provides the data
+    parent_candidates = [name for name in hists if "genflav" not in name]
+    if not parent_candidates:
+        raise ValueError("include the parent region (without genflav) in --categories; it provides the data")
+    parent_name = parent_candidates[0]
+
+    genflav_names = {
+        int(name.rsplit("genflav", 1)[1]): name
+        for name in hists if "genflav" in name
+    }
+
+    plot_hists = {}
+    for proc_inst, h in hists[parent_name].items():
+        if proc_inst.is_data:
+            plot_hists[proc_inst] = move_flow(h, variable_inst)
+
+    # one stack component per genflav value: the sum of its MC processes
+    for flav, (label, color) in GENFLAV_STYLE.items():
+        cat_name = genflav_names.get(flav)
+        if cat_name is None:
+            continue
+        mc_hists = [h for proc_inst, h in hists[cat_name].items() if not proc_inst.is_data]
+        if not mc_hists:
+            continue
+        proc = od.Process(name=f"genflav{flav}", id="+", label=label)
+        proc.color1 = color  # set the colour the same way your config sets process colours
+        plot_hists[proc] = move_flow(functools.reduce(lambda a, b: a + b, mc_hists), variable_inst)
+
+    return plot_variable_stack(
+        plot_hists,
+        config_inst=config_inst,
+        variable_insts=variable_insts,
+        category_inst=cats[parent_name],
+        shift_insts=shift_insts,
+        **kwargs,
+    )
