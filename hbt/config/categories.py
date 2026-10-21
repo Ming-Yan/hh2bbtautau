@@ -166,11 +166,11 @@ def add_categories(config: od.Config) -> None:
         ),
         # btag groups
         "btags": CategoryGroup(["eq0b", "eq1b", "eq2b", "ge3b"], is_complete=True, has_overlap=False),
-        # "genflav": CategoryGroup(
-        #     [f"genflav{flav}" for flav in genflav_labels],
-        #     is_complete=False,
-        #     has_overlap=False,
-        # ),
+        "genflav": CategoryGroup(
+            [f"genflav{flav}" for flav in genflav_labels],
+            is_complete=False,
+            has_overlap=False,
+        ),
         # qcd regions last
         "sign": CategoryGroup(["os", "ss"], is_complete=True, has_overlap=False),
         "tau2": CategoryGroup(["iso", "noniso"], is_complete=True, has_overlap=False),

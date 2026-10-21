@@ -5,7 +5,7 @@ from __future__ import annotations
 import law
 import order as od
 
-from columnflow.plotting import supports_multi_variable, supports_multi_category, supports_multi_version
+from columnflow.plotting import supports_multi_variable, supports_multi_category#, supports_multi_version
 
 from columnflow.plotting.plot_all import plot_all
 from columnflow.plotting.plot_util import prepare_style_config, remove_residual_axis, use_flow_bins
@@ -178,80 +178,80 @@ def multi_cat_plot(
 
     return plot_all(plot_config, style_config, **kwargs)
 
-@supports_multi_version
-def multi_ver_plot(
-    hists: dict[od.Process, hist.Hist] | dict[str, dict[od.Process, hist.Hist]],
-    config_inst: od.Config,
-    category_inst: od.Category,
-    variable_insts: list[od.Variable],
-    shift_insts: list[od.Shift],
-    style_config: dict | None = None,
-    variable_settings: dict[str, Any] | None = None,
-    **kwargs,
-) -> tuple[plt.Figure, tuple[plt.Axes, ...]]:
-    # emulate multi-version input
-    if isinstance(list(hists)[0], od.Process):
-        hists = {category_inst.name: hists}  # single fake "version" key, label is irrelevant here since len==1
+# @supports_multi_version
+# def multi_ver_plot(
+#     hists: dict[od.Process, hist.Hist] | dict[str, dict[od.Process, hist.Hist]],
+#     config_inst: od.Config,
+#     category_inst: od.Category,
+#     variable_insts: list[od.Variable],
+#     shift_insts: list[od.Shift],
+#     style_config: dict | None = None,
+#     variable_settings: dict[str, Any] | None = None,
+#     **kwargs,
+# ) -> tuple[plt.Figure, tuple[plt.Axes, ...]]:
+#     # emulate multi-version input
+#     if isinstance(list(hists)[0], od.Process):
+#         hists = {category_inst.name: hists}  # single fake "version" key, label is irrelevant here since len==1
 
-    # prepare objects
-    assert len(variable_insts) == 1
-    variable_inst = variable_insts[0]
+#     # prepare objects
+#     assert len(variable_insts) == 1
+#     variable_inst = variable_insts[0]
 
-    # remove shift axis
-    hists = {ver_name: remove_residual_axis(proc_hists, "shift") for ver_name, proc_hists in hists.items()}
+#     # remove shift axis
+#     hists = {ver_name: remove_residual_axis(proc_hists, "shift") for ver_name, proc_hists in hists.items()}
 
-    # unique process instances
-    unique_proc_insts = set(sum((list(v.keys()) for v in hists.values()), []))
+#     # unique process instances
+#     unique_proc_insts = set(sum((list(v.keys()) for v in hists.values()), []))
 
-    # helper to create legend labels
-    def create_legend_label(proc_inst: od.Process, ver_name: str) -> str:
-        return ver_name if len(unique_proc_insts) == 1 else f"{proc_inst.label}: {ver_name}"
+#     # helper to create legend labels
+#     def create_legend_label(proc_inst: od.Process, ver_name: str) -> str:
+#         return ver_name if len(unique_proc_insts) == 1 else f"{proc_inst.label}: {ver_name}"
 
-    # create plot instructions for plot_all
-    plot_config = {
-        **{
-            f"multi_ver_plot__{proc_inst.name}__{ver_name}": {
-                "method": "draw_hist",
-                "hist": move_flow(h, variable_inst),
-                "kwargs": dict(
-                    label=create_legend_label(proc_inst, ver_name),
-                    color=config_inst.x.get_color_from_sequence(i),
-                    linestyle=config_inst.x.get_line_style_from_sequence(j),
-                    error_type="variance",
-                    linewidth=1.5,
-                ),
-            }
-            for i, (ver_name, proc_hists) in enumerate(hists.items())
-            for j, (proc_inst, h) in enumerate(proc_hists.items())
-        },
-    }
+#     # create plot instructions for plot_all
+#     plot_config = {
+#         **{
+#             f"multi_ver_plot__{proc_inst.name}__{ver_name}": {
+#                 "method": "draw_hist",
+#                 "hist": move_flow(h, variable_inst),
+#                 "kwargs": dict(
+#                     label=create_legend_label(proc_inst, ver_name),
+#                     color=config_inst.x.get_color_from_sequence(i),
+#                     linestyle=config_inst.x.get_line_style_from_sequence(j),
+#                     error_type="variance",
+#                     linewidth=1.5,
+#                 ),
+#             }
+#             for i, (ver_name, proc_hists) in enumerate(hists.items())
+#             for j, (proc_inst, h) in enumerate(proc_hists.items())
+#         },
+#     }
 
-    # combine the style config
-    style_config = law.util.merge_dicts(
-        # inferred from config, category, variable
-        prepare_style_config(
-            config_inst=config_inst,
-            category_inst=category_inst,
-            variable_inst=variable_inst,
-        ),
-        # passed styles
-        style_config,
-        (variable_settings or {}),
-        # overwrite with hardcoded settings
-        {
-            "cms_label_cfg": {"loc": 0},
-            "legend_cfg": {"loc": "upper right", "fontsize": 18},
-        },
-        deep=True,
-    )
+#     # combine the style config
+#     style_config = law.util.merge_dicts(
+#         # inferred from config, category, variable
+#         prepare_style_config(
+#             config_inst=config_inst,
+#             category_inst=category_inst,
+#             variable_inst=variable_inst,
+#         ),
+#         # passed styles
+#         style_config,
+#         (variable_settings or {}),
+#         # overwrite with hardcoded settings
+#         {
+#             "cms_label_cfg": {"loc": 0},
+#             "legend_cfg": {"loc": "upper right", "fontsize": 18},
+#         },
+#         deep=True,
+#     )
 
-    # update kwargs for plot_all
-    kwargs = kwargs | {
-        "skip_ratio": True,
-        "skip_legend": False,
-    }
+#     # update kwargs for plot_all
+#     kwargs = kwargs | {
+#         "skip_ratio": True,
+#         "skip_legend": False,
+#     }
 
-    return plot_all(plot_config, style_config, **kwargs)
+#     return plot_all(plot_config, style_config, **kwargs)
 
 # helper to move flow bins into first/last ones
 def move_flow(h: hist.Hist, variable_inst: od.Variable) -> hist.Hist:
@@ -260,6 +260,10 @@ def move_flow(h: hist.Hist, variable_inst: od.Variable) -> hist.Hist:
     if overflow or underflow:
         h = use_flow_bins(h, variable_inst.name, underflow=underflow, overflow=overflow)
     return h
+
+# at the top of multi.py, with the other imports
+import functools
+from columnflow.plotting.plot_functions_1d import plot_variable_stack
 
 # genPartFlav value -> (legend label, colour)
 GENFLAV_STYLE = {
@@ -270,6 +274,19 @@ GENFLAV_STYLE = {
     4: (r"$\tau \to \mu$", "#832db6"),
     0: ("unmatched (jet fake)", "#a96b59"),
 }
+
+import re
+
+GENFLAV_RE = re.compile(r"__genflav(\d+)")
+
+
+def split_genflav_name(name: str) -> tuple[int | None, str]:
+    # "tautau__incl__eq1b__genflav1__os__iso" -> (1, "tautau__incl__eq1b__os__iso")
+    # "tautau__incl__eq1b__os__iso" -> (None, "tautau__incl__eq1b__os__iso")
+    match = GENFLAV_RE.search(name)
+    if match is None:
+        return None, name
+    return int(match.group(1)), GENFLAV_RE.sub("", name, count=1)
 
 
 @supports_multi_category
@@ -285,16 +302,20 @@ def multi_cat_genflav_stack(
     hists = {cat_name: remove_residual_axis(proc_hists, "shift") for cat_name, proc_hists in hists.items()}
     cats = {cat.name: cat for cat in law.util.make_list(category_inst)}
     variable_inst = variable_insts[0]
+    
+    parsed = {name: split_genflav_name(name) for name in hists.keys()}
+    # from IPython import embed; embed()  # noqa: E800
+    # exactly one parent region (a category without a genflav suffix) must be requested
+    parent_names = {parent for flav, parent in parsed.values() if flav is None}
+    if len(parent_names) != 1:
+        raise ValueError(f"expected exactly one parent region in --categories, got {sorted(parent_names)}")
+    parent_name = parent_names.pop()
 
-    # the parent region (no genflav suffix) provides the data
-    parent_candidates = [name for name in hists if "genflav" not in name]
-    if not parent_candidates:
-        raise ValueError("include the parent region (without genflav) in --categories; it provides the data")
-    parent_name = parent_candidates[0]
-
+    # genflav children of that parent, keyed by genPartFlav value
     genflav_names = {
-        int(name.rsplit("genflav", 1)[1]): name
-        for name in hists if "genflav" in name
+        flav: name
+        for name, (flav, parent) in parsed.items()
+        if flav is not None and parent == parent_name
     }
 
     plot_hists = {}
