@@ -104,9 +104,150 @@ def cat_noniso(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array,
 # additional special regions
 #
 
+@categorizer(uses={"HHBJet.{mass,pt,eta,phi}"})
+def cat_jetpt50(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    events = attach_coffea_behavior(events, {"HHBJet": "Jet"})
+    mask = ak.all(events.HHBJet.pt>50,axis=-1)
+    return events, mask
+
 @categorizer(uses={"single_triggered"})
 def cat_single_triggered(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
     return events, events.single_triggered == 1
+
+
+#
+# trigger-based regions, based on matched_trigger_ids of the 2023 trigger study
+#
+
+# study trigger ids sorted by priority (highest first), same order as in the trigger study
+TRIGGER_STUDY_IDS = [205, 105, 405, 304, 507, 701, 602, 605, 606, 608, 609]
+
+# priority group of each study trigger in 2023, mirrors the trigger tag groups in hbt/selection/jet.py
+TRIGGER_STUDY_GROUPS = {
+    205: 1, 105: 1, 405: 1, 304: 1, 507: 1, 701: 1,  # group 1: e/mu single, cross e/mu-tau, cross tau-tau
+    # group 2 (cross quadjet) has no study trigger in 2023
+    602: 3,  # group 3: cross tau-tau vbf
+    605: 4,  # group 4: cross vbf
+    606: 5, 608: 5, 609: 5,  # group 5: cross e/mu/tau vbf
+}
+
+
+def _trigger_study_fired(events) -> dict[int, ak.Array]:
+    # per-event booleans, whether each study trigger is among the matched trigger ids
+    return {
+        tid: ak.fill_none(ak.any(events.matched_trigger_ids == tid, axis=1), False)
+        for tid in TRIGGER_STUDY_IDS
+    }
+
+
+def _trigger_study_any(events, fired: dict[int, ak.Array], trigger_ids: list[int]) -> ak.Array:
+    # per-event boolean, whether at least one of the given study triggers fired
+    mask = full_like(events.event, False, dtype=bool)
+    for tid in trigger_ids:
+        mask = mask | fired[tid]
+    return mask
+
+
+def _trigger_study_count(events, fired: dict[int, ak.Array], trigger_ids: list[int]) -> ak.Array:
+    # per-event number of fired study triggers among the given ones
+    count = full_like(events.event, 0, dtype=int)
+    for tid in trigger_ids:
+        count = count + fired[tid] * 1
+    return count
+
+
+def _trigger_study_group(group: int) -> list[int]:
+    return [tid for tid in TRIGGER_STUDY_IDS if TRIGGER_STUDY_GROUPS.get(tid) == group]
+
+
+@categorizer(uses={"matched_trigger_ids", "event"}, trigger_id=None)
+def cat_only_trigger(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    # only this study trigger fired, no other study trigger
+    fired = _trigger_study_fired(events)
+    n_fired = _trigger_study_count(events, fired, TRIGGER_STUDY_IDS)
+    return events, fired[self.trigger_id] & (n_fired == 1)
+
+
+@categorizer(uses={"matched_trigger_ids", "event"}, trigger_id=None)
+def cat_primary_trigger(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    # this study trigger fired and no study trigger of higher priority fired; others may also fire
+    fired = _trigger_study_fired(events)
+    higher = TRIGGER_STUDY_IDS[:TRIGGER_STUDY_IDS.index(self.trigger_id)]
+    return events, fired[self.trigger_id] & ~_trigger_study_any(events, fired, higher)
+
+
+@categorizer(uses={"matched_trigger_ids", "event"}, group=None)
+def cat_only_group(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    # at least one trigger of the group fired and no trigger of any other group
+    fired = _trigger_study_fired(events)
+    in_group = _trigger_study_group(self.group)
+    others = [tid for tid in TRIGGER_STUDY_IDS if tid not in in_group]
+    mask = _trigger_study_any(events, fired, in_group) & ~_trigger_study_any(events, fired, others)
+    return events, mask
+
+
+@categorizer(uses={"matched_trigger_ids", "event"}, group=None, min_fired=1)
+def cat_group_min(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    # at least min_fired triggers of the group fired
+    fired = _trigger_study_fired(events)
+    count = _trigger_study_count(events, fired, _trigger_study_group(self.group))
+    return events, count >= self.min_fired
+
+
+@categorizer(uses={"matched_trigger_ids", "event"}, groups=None)
+def cat_groups_all(self: Categorizer, events: ak.Array, **kwargs) -> tuple[ak.Array, ak.Array]:
+    # at least one trigger of every listed group fired (chained with +)
+    fired = _trigger_study_fired(events)
+    mask = full_like(events.event, True, dtype=bool)
+    for group in self.groups:
+        mask = mask | _trigger_study_any(events, fired, _trigger_study_group(group))
+    return events, mask
+
+
+# only_<id>: only this study trigger fired
+cat_only_205 = cat_only_trigger.derive("cat_only_205", cls_dict={"trigger_id": 205})
+cat_only_105 = cat_only_trigger.derive("cat_only_105", cls_dict={"trigger_id": 105})
+cat_only_405 = cat_only_trigger.derive("cat_only_405", cls_dict={"trigger_id": 405})
+cat_only_304 = cat_only_trigger.derive("cat_only_304", cls_dict={"trigger_id": 304})
+cat_only_507 = cat_only_trigger.derive("cat_only_507", cls_dict={"trigger_id": 507})
+cat_only_701 = cat_only_trigger.derive("cat_only_701", cls_dict={"trigger_id": 701})
+cat_only_602 = cat_only_trigger.derive("cat_only_602", cls_dict={"trigger_id": 602})
+cat_only_605 = cat_only_trigger.derive("cat_only_605", cls_dict={"trigger_id": 605})
+cat_only_606 = cat_only_trigger.derive("cat_only_606", cls_dict={"trigger_id": 606})
+cat_only_608 = cat_only_trigger.derive("cat_only_608", cls_dict={"trigger_id": 608})
+cat_only_609 = cat_only_trigger.derive("cat_only_609", cls_dict={"trigger_id": 609})
+
+# primary_<id>: this study trigger fired, no study trigger of higher priority fired
+cat_primary_205 = cat_primary_trigger.derive("cat_primary_205", cls_dict={"trigger_id": 205})
+cat_primary_105 = cat_primary_trigger.derive("cat_primary_105", cls_dict={"trigger_id": 105})
+cat_primary_405 = cat_primary_trigger.derive("cat_primary_405", cls_dict={"trigger_id": 405})
+cat_primary_304 = cat_primary_trigger.derive("cat_primary_304", cls_dict={"trigger_id": 304})
+cat_primary_507 = cat_primary_trigger.derive("cat_primary_507", cls_dict={"trigger_id": 507})
+cat_primary_701 = cat_primary_trigger.derive("cat_primary_701", cls_dict={"trigger_id": 701})
+cat_primary_602 = cat_primary_trigger.derive("cat_primary_602", cls_dict={"trigger_id": 602})
+cat_primary_605 = cat_primary_trigger.derive("cat_primary_605", cls_dict={"trigger_id": 605})
+cat_primary_606 = cat_primary_trigger.derive("cat_primary_606", cls_dict={"trigger_id": 606})
+cat_primary_608 = cat_primary_trigger.derive("cat_primary_608", cls_dict={"trigger_id": 608})
+cat_primary_609 = cat_primary_trigger.derive("cat_primary_609", cls_dict={"trigger_id": 609})
+
+# only_group<N>: at least one trigger of group N fired and no trigger of any other group
+cat_only_group1 = cat_only_group.derive("cat_only_group1", cls_dict={"group": 1})
+cat_only_group2 = cat_only_group.derive("cat_only_group2", cls_dict={"group": 2})
+cat_only_group3 = cat_only_group.derive("cat_only_group3", cls_dict={"group": 3})
+cat_only_group4 = cat_only_group.derive("cat_only_group4", cls_dict={"group": 4})
+cat_only_group5 = cat_only_group.derive("cat_only_group5", cls_dict={"group": 5})
+
+# group1_ge2: at least two triggers of group 1 fired
+cat_group1_ge2 = cat_group_min.derive("cat_group1_ge2", cls_dict={"group": 1, "min_fired": 2})
+
+# group combinations: at least one trigger of every listed group fired
+# group 2 has no study trigger in 2023, so the combinations skip it
+cat_group1 = cat_groups_all.derive("cat_group1", cls_dict={"groups": (1,)})
+cat_group1_group3 = cat_groups_all.derive("cat_group1_group3", cls_dict={"groups": (1, 3)})
+cat_group1_group3_group4 = cat_groups_all.derive("cat_group1_group3_group4", cls_dict={"groups": (1, 3, 4)})
+cat_group1_group3_group4_group5 = cat_groups_all.derive(
+    "cat_group1_group3_group4_group5", cls_dict={"groups": (1, 3, 4, 5)},
+)
 
 
 #

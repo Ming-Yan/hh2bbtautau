@@ -806,7 +806,7 @@ def add_config(
             if re.match(r"^(hh_ggf_hbb_htt_.+|tt_(sl|dl|fh)_powheg|dy(_tautau)?_m50toinf_.*amcatnlo)$", dataset.name)
         ],
     }
-
+    print( cfg.x.dataset_groups['data_std'])
     # category groups for conveniently looping over certain categories
     # (used during plotting)
     cfg.x.category_groups = {
@@ -1349,6 +1349,11 @@ def add_config(
         lep_used=True,
     )
 
+    # store the individual trigger sf sources and the per-trigger base pass flags, currently only for the
+    # studies of the trigger sfs in 2023 postBPix (see hbt.production.trigger_sf_sources)
+    if year == 2023 and campaign.has_tag("postBPix"):
+        cfg.set_aux("store_trigger_sf_sources", True)
+    
     # quadjet trigger
     cfg.x.jet_quadjet_trigger_corrector = "QuadJet_btag"
 

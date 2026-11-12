@@ -88,7 +88,26 @@ def add_categories(config: od.Config) -> None:
     _add_category(name="boosted_cc", selection="cat_boosted_cc", label="Boosted", tags={"skip_cutflow"})
     _add_category(name="res1b_inclvbf_cc", selection="cat_res1b_inclvbf_cc", label="Resolved, ggF, 1 b-tag", tags={"skip_cutflow"})  # noqa: E501
     _add_category(name="res2b_inclvbf_cc", selection="cat_res2b_inclvbf_cc", label=r"Resolved, ggF, $\geq$2 b-tags", tags={"skip_cutflow"})  # noqa: E501
+    _add_category(name="jetpt50", selection="cat_jetpt50",label=r"Jet pT>50",tags={"skip_cutflow"})
 
+    # trigger-based categories from matched_trigger_ids of the 2023 trigger study
+    # (categorizers in hbt/categorization/default.py)
+    trgcat=[]
+    for tid in [205, 105, 405, 304, 507, 701, 602, 605, 606, 608, 609]:
+        _add_category(name=f"only_{tid}", selection=f"cat_only_{tid}", label=f"only trigger {tid}")
+        # _add_category(name=f"primary_{tid}", selection=f"cat_primary_{tid}", label=f"primary trigger {tid}")
+        trgcat.append(f"only_{tid}")
+        # trgcat.append(f"primary_{tid}")
+    for group in [1, 2, 3, 4, 5]:
+        _add_category(name=f"only_group{group}", selection=f"cat_only_group{group}", label=f"only group {group}")
+        trgcat.append(f"only_group{group}")
+        
+    _add_category(name="group1_ge2", selection="cat_group1_ge2", label=r"$\geq$2 group 1 triggers")
+    _add_category(name="group1", selection="cat_group1", label="group 1")
+    _add_category(name="group1+group3", selection="cat_group1_group3", label="group 1 + 3")
+    _add_category(name="group1+group3+group4", selection="cat_group1_group3_group4", label="group 1 + 3 + 4")
+    _add_category(name="group1+group3+group4+group5", selection="cat_group1_group3_group4_group5", label="group 1 + 3 + 4 + 5")  # noqa: E501
+    trgcat=trgcat+["group1_ge2","group1","group1+group3","group1+group3+group4","group1+group3+group4+group5","jetpt50"]
     #
     # build groups
     #
@@ -122,24 +141,45 @@ def add_categories(config: od.Config) -> None:
 
     # main analysis categories
     main_categories = {
-        # channels first
-        "channel": CategoryGroup(["etau", "mutau", "tautau"], is_complete=False, has_overlap=False),
-        # kinematic regions in the middle (to be extended)
-        "kin": CategoryGroup(
-            [
-                "incl", "res1b", "res2b", "boosted",
-                "res1b_cc", "res2b_cc", "vbf_cc", "boosted_cc",
-                "eq2j", "eq3j", "eq4j", "eq5j", "ge2j", "ge3j", "ge4j",
-            ],
-            is_complete=True,
-            has_overlap=True,
-        ),
-        # btag groups
-        "btags": CategoryGroup(["eq0b", "eq1b", "eq2b", "ge3b"], is_complete=True, has_overlap=False),
-        # qcd regions last
-        "sign": CategoryGroup(["os", "ss"], is_complete=True, has_overlap=False),
-        "tau2": CategoryGroup(["iso", "noniso"], is_complete=True, has_overlap=False),
-    }
+    #     # channels first
+         "channel": CategoryGroup(["etau", "mutau", "tautau"], is_complete=False, has_overlap=False),
+    #     # kinematic regions in the middle (to be extended)
+         "kin": CategoryGroup(
+             [
+                 "incl", #"res1b", "res2b", "boosted",
+    #             #"res1b_cc", "res2b_cc", "vbf_cc", "boosted_cc",
+    #             #"eq2j", "eq3j", "eq4j", "eq5j", "ge2j", "ge3j", "ge4j"
+    #             "ge2j"
+             ],
+             is_complete=True,
+             has_overlap=True,
+         ),
+         "trg":CategoryGroup(trgcat,is_complete=True,has_overlap=True),
+    #     # btag groups
+         "btags": CategoryGroup(["incl","eq0b", "eq1b", "eq2b", "ge3b"], is_complete=True, has_overlap=False),
+    #     # qcd regions last
+         "sign": CategoryGroup(["os", "ss"], is_complete=True, has_overlap=False),
+         "tau2": CategoryGroup(["iso", "noniso"], is_complete=True, has_overlap=False),
+     }
+    # main_categories = {
+    #     # channels first
+    #     "channel": CategoryGroup(["etau", "mutau", "tautau"], is_complete=False, has_overlap=False),
+    #     # kinematic regions in the middle (to be extended)
+    #     "kin": CategoryGroup(
+    #         [
+    #             "incl", "res1b", "res2b", "boosted",
+    #             "res1b_cc", "res2b_cc", "vbf_cc", "boosted_cc",
+    #             "eq2j", "eq3j", "eq4j", "eq5j", "ge2j", "ge3j", "ge4j",
+    #         ],
+    #         is_complete=True,
+    #         has_overlap=True,
+    #     ),
+    #     # btag groups
+    #     "btags": CategoryGroup(["eq0b", "eq1b", "eq2b", "ge3b"], is_complete=True, has_overlap=False),
+    #     # qcd regions last
+    #     "sign": CategoryGroup(["os", "ss"], is_complete=True, has_overlap=False),
+    #     "tau2": CategoryGroup(["iso", "noniso"], is_complete=True, has_overlap=False),
+    # }
 
     create_category_combinations(
         config=config,
@@ -151,49 +191,49 @@ def add_categories(config: od.Config) -> None:
     )
 
     # control categories
-    control_categories = {
-        # channels
-        "channel": CategoryGroup(["ee", "mumu", "emu"], is_complete=False, has_overlap=False),
-        # kinematic regions
-        "kin": CategoryGroup(["incl", "dy", "dyc", "tt", "dy_st", "mll40"], is_complete=True, has_overlap=True),
-        "jets": CategoryGroup(["eq2j", "eq3j", "eq4j", "ge2j", "ge4j", "eq5j", "ge6j"], is_complete=True, has_overlap=True),  # noqa: E501
-        "btags": CategoryGroup(["eq0b", "eq1b", "eq2b", "ge0b", "ge2b"], is_complete=True, has_overlap=True),
-        # relative sign
-        "sign": CategoryGroup(["os"], is_complete=False, has_overlap=False),
-    }
+    # control_categories = {
+    #     # channels
+    #     "channel": CategoryGroup(["ee", "mumu", "emu"], is_complete=False, has_overlap=False),
+    #     # kinematic regions
+    #     "kin": CategoryGroup(["incl", "dy", "dyc", "tt", "dy_st", "mll40"], is_complete=True, has_overlap=True),
+    #     "jets": CategoryGroup(["eq2j", "eq3j", "eq4j", "ge2j", "ge4j", "eq5j", "ge6j"], is_complete=True, has_overlap=True),  # noqa: E501
+    #     "btags": CategoryGroup(["eq0b", "eq1b", "eq2b", "ge0b", "ge2b"], is_complete=True, has_overlap=True),
+    #     # relative sign
+    #     "sign": CategoryGroup(["os"], is_complete=False, has_overlap=False),
+    # }
 
-    def skip_fn_ctrl(categories: dict[str, od.Category]) -> bool:
-        if "channel" not in categories or "kin" not in categories:
-            return False
-        ch_cat = categories["channel"]
-        kin_cat = categories["kin"]
-        # skip dy in emu
-        if kin_cat.name.startswith("dy") and ch_cat.name == "emu":
-            return True
-        # skip tt in ee/mumu
-        if kin_cat.name == "tt" and ch_cat.name in {"ee", "mumu"}:
-            return True
-        return False
+    # def skip_fn_ctrl(categories: dict[str, od.Category]) -> bool:
+    #     if "channel" not in categories or "kin" not in categories:
+    #         return False
+    #     ch_cat = categories["channel"]
+    #     kin_cat = categories["kin"]
+    #     # skip dy in emu
+    #     if kin_cat.name.startswith("dy") and ch_cat.name == "emu":
+    #         return True
+    #     # skip tt in ee/mumu
+    #     if kin_cat.name == "tt" and ch_cat.name in {"ee", "mumu"}:
+    #         return True
+    #     return False
 
-    create_category_combinations(
-        config=config,
-        categories=control_categories,
-        name_fn=name_fn,
-        parent_mode="safe",
-        kwargs_fn=functools.partial(kwargs_fn, add_qcd_group=False),
-        skip_existing=False,
-        skip_fn=skip_fn_ctrl,
-    )
+    # create_category_combinations(
+    #     config=config,
+    #     categories=control_categories,
+    #     name_fn=name_fn,
+    #     parent_mode="safe",
+    #     kwargs_fn=functools.partial(kwargs_fn, add_qcd_group=False),
+    #     skip_existing=False,
+    #     skip_fn=skip_fn_ctrl,
+    # )
 
     # additional combined categories
-    _add_category(
-        name="incl__os__iso",
-        label=r"$e\tau/\mu\tau/\tau\tau$, inclusive",
-        categories=[
-            config.get_category("etau__incl__os__iso"),
-            config.get_category("mutau__incl__os__iso"),
-            config.get_category("tautau__incl__os__iso"),
-        ],
-    )
+#    _add_category(
+#        name="incl__os__iso",
+#        label=r"$e\tau/\mu\tau/\tau\tau$, inclusive",
+#        categories=[
+#            config.get_category("etau__incl__os__iso"),
+#            config.get_category("mutau__incl__os__iso"),
+#            config.get_category("tautau__incl__os__iso"),
+#        ],
+#    )
 
     id_cache.close()

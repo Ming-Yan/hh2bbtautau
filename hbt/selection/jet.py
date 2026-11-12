@@ -254,6 +254,69 @@ def quadjet_jet_trigger_matching(
     return matches
 
 
+def set_trigger_base_pass_flags(
+    events: ak.Array,
+    config_inst,
+    applicable_trigger_ids: set[int],
+    hhbjet_mask: ak.Array,
+    lepton_base_pass: dict[str, ak.Array],
+    lepton_partial_base_pass: dict[str, ak.Array],
+    trig_jet_req_masks: dict[int, ak.Array],
+) -> ak.Array:
+    """
+    Stores one ``base_pass_<trigger_id>`` flag per trigger of the config. A flag is True for events that pass the
+    offline base selection of the trigger, i.e. the lepton base selection (``lepton_base_pass`` for triggers that
+    only need leptons, ``lepton_partial_base_pass`` for triggers that additionally need jets) combined with the jet
+    requirements of the trigger. The flag does not depend on whether the trigger fired and is not affected by the
+    trigger priority orthogonalization. Triggers that do not apply to the dataset get False.
+    """
+    # jet requirement of the tau-tau-jet trigger, evaluated for all events
+    # ! Note: the comparison with EMPTY_FLOAT on the boolean hhbjet mask is always true, so the effective
+    # requirement is any jet with pt > 60 GeV (same definition as in the ttj block of the jet selection)
+    ttj_jet_req = ak.any((hhbjet_mask != EMPTY_FLOAT) & (events.Jet.pt > 60.0), axis=1)
+
+    # the lepton base selection is stored per base selection tag, so every applicable trigger needs a unique tag
+    trigger_tags = {}
+    for trigger in config_inst.x.triggers:
+        if trigger.id not in applicable_trigger_ids:
+            continue
+        tags = [tag for tag in list(lepton_base_pass) + list(lepton_partial_base_pass) if trigger.has_tag(tag)]
+        if len(tags) > 1:
+            raise ValueError(f"trigger {trigger.name} matches multiple base selection tags: {tags}")
+        trigger_tags[trigger.id] = tags[0] if tags else None
+    all_tags = list(trigger_tags.values())
+    shared_tags = {tag for tag in all_tags if tag is not None and all_tags.count(tag) > 1}
+    if shared_tags:
+        raise ValueError(
+            f"base selection tags {sorted(shared_tags)} are shared by multiple applicable triggers, "
+            "the per-trigger base pass flags are ambiguous",
+        )
+
+    for trigger in config_inst.x.triggers:
+        base_pass = full_like(events.event, False, dtype=bool)
+        if trigger.id in trigger_tags:
+            tag = trigger_tags[trigger.id]
+            if tag is None:
+                logger.warning_once(
+                    f"no_base_pass_tag_{trigger.id}",
+                    f"no base selection tag found for trigger {trigger.name}, base pass flag is set to False",
+                )
+            elif tag in lepton_base_pass:
+                base_pass = lepton_base_pass[tag]
+            else:
+                base_pass = lepton_partial_base_pass[tag]
+
+            # jet requirements of the vbf and quadjet triggers, and of the tau-tau-jet trigger
+            if trigger.id in trig_jet_req_masks:
+                base_pass = base_pass & trig_jet_req_masks[trigger.id]
+            if trigger.has_tag("cross_tau_tau_jet"):
+                base_pass = base_pass & ttj_jet_req
+
+        events = set_ak_column(events, f"base_pass_{trigger.id}", ak.fill_none(base_pass, False), value_type=bool)
+
+    return events
+
+
 @selector(
     uses={
         hhbtag, vbfjtag, jet_trigger_matching, quadjet_jet_trigger_matching,
@@ -401,6 +464,13 @@ def jet_selection(
     # get information about passed base selections per trigger from lepton selection
     partially_passed_base_selection = lepton_results.x.partially_passed_base_selection
     passed_base_selection = lepton_results.x.passed_base_selection
+
+    # keep shallow copies of the lepton-level base selection decisions, as the dictionaries are modified below;
+    # these are used for the per-trigger base pass flags at the end of this selection
+    lepton_base_pass = dict(passed_base_selection)
+    lepton_partial_base_pass = dict(partially_passed_base_selection)
+    # event-level jet requirements of the vbf and quadjet triggers, filled in the orthogonalization loop below
+    trig_jet_req_masks = {}
 
     # only perform this special treatment when applicable
     if ak.any(ttj_mask):
@@ -784,6 +854,9 @@ def jet_selection(
             # united part for vbf and quadjet triggers for orthogonalization and matched trigger
             # ids storage, as the logic is the same for both types of triggers
             if trigger.id in all_vbf_quadjet_trigger:
+                # store the jet requirements of the trigger before the orthogonalization is applied
+                trig_jet_req_masks[trigger.id] = trig_req_mask
+
                 # create orthogonalization mask to remove higher priority trigger selected events
                 orthogonalization_mask = full_like(events.event, False, dtype=bool)
                 for name in higher_priority_triggers:
@@ -898,6 +971,21 @@ def jet_selection(
         match_at_least_one_trigger = ak.where(vbf_quadjet_fired_j_not_matched, False, match_at_least_one_trigger)
 
     #
+    # per-trigger base pass flags, used by hbt.production.trigger_sf_sources
+    # (independent of whether the trigger fired and not affected by the trigger priority orthogonalization)
+    #
+    if self.config_inst.has_aux("store_trigger_sf_sources"):
+        events = set_trigger_base_pass_flags(
+            events,
+            config_inst=self.config_inst,
+            applicable_trigger_ids={trigger.id for trigger, _, _ in trigger_results.x.trigger_data},
+            hhbjet_mask=hhbjet_mask,
+            lepton_base_pass=lepton_base_pass,
+            lepton_partial_base_pass=lepton_partial_base_pass,
+            trig_jet_req_masks=trig_jet_req_masks,
+        )
+
+    #
     # final selection and object construction
     #
 
@@ -991,6 +1079,10 @@ def jet_selection_init(self: Selector, **kwargs) -> None:
         for shift_inst in self.config_inst.shifts
         if shift_inst.has_tag(("jec", "jer"))
     }
+
+    # per-trigger base pass flags, see the jet selection
+    if self.config_inst.has_aux("store_trigger_sf_sources"):
+        self.produces |= {f"base_pass_{trigger.id}" for trigger in self.config_inst.x.triggers}
 
 
 @jet_selection.setup

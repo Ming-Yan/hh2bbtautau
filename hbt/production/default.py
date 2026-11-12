@@ -20,6 +20,7 @@ from hbt.production.weights import (
 )
 from hbt.production.tau import tau_weights
 from hbt.production.trigger_sf import trigger_weight
+from hbt.production.trigger_sf_sources import trigger_sf_sources
 from hbt.util import IF_DATASET_HAS_LHE_WEIGHTS, IF_RUN_3_2022_2023, IF_RUN_3_2024
 
 np = maybe_import("numpy")
@@ -161,6 +162,10 @@ def default(self: Producer, events: ak.Array, **kwargs) -> ak.Array:
         if self.has_dep(trigger_weight):
             events = self[trigger_weight](events, **kwargs)
 
+        # individual trigger sf sources, requires the trigger weights to be created beforehand
+        if self.has_dep(trigger_sf_sources):
+            events = self[trigger_sf_sources](events, **kwargs)
+
         # top pt weight
         if self.has_dep(top_pt_weight):
             events = self[top_pt_weight](events, **kwargs)
@@ -190,6 +195,8 @@ def default_init(self: Producer, **kwargs) -> None:
             weight_producers.add(top_pt_weight)
         if self.dataset_inst.has_tag("dy"):
             weight_producers.add(dy_weights)
+        if self.config_inst.has_aux("store_trigger_sf_sources"):
+            weight_producers.add(trigger_sf_sources)
 
         self.uses |= weight_producers
         self.produces |= weight_producers
